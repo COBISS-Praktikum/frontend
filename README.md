@@ -1,124 +1,87 @@
 # SGC Navigator Frontend
 
-## About SGC Navigator
+## O SGC Navigatorju
 
-**SGC Navigator** is a web-based navigator for the COBISS General Subject Headings (SGC / Splošni geslovnik COBISS), a controlled vocabulary thesaurus in Slovenia's COBISS.SI library system. 
+**SGC Navigator** je spletni navigator za Splošni geslovnik COBISS (SGC / Splošni geslovnik COBISS), kontrolirani tezaver v slovenskem sistemu COBISS.SI. 
 
-The navigator enables users to search approximately **70,000 SKOS terms** and explore their hierarchical and associative relationships through an interactive graph view. Users can navigate between broader concepts (nadrejeni), narrower concepts (podrejeni), and related terms (sorodni izrazi) visualized as an interactive concept graph. All terms are available in both Slovenian and English.
+Navigator uporabnikom omogoča iskanje približno **700.000 SKOS izrazov** in raziskovanje njihovih hierarhičnih in asociativnih razmerij prek interaktivnega grafičnega prikaza. Uporabniki se lahko navigirajo med širšimi pojmi (nadrejeni), ožjimi pojmi (podrejeni) in sorodnimi izrazi (sorodni izrazi) vizualiziranimi kot interaktivni konceptni graf. Vsi izrazi so dostopni v slovenščini in angleščini.
 
-**Target Users**: COBISS Plus users and librarians
+**Ciljni uporabniki**: Uporabniki COBISS Plus in knjižničarji
 
-**Similar Solutions**: [GND Explorer](https://explore.gnd.network/) (German National Library thesaurus)
+**Podobne rešitve**: [GND Explorer](https://explore.gnd.network/) (Německi nacionalni tezaver)
 
-## Tech Stack
+## Tehnološki sklad
 
-- **Frontend**: React 19 + TypeScript (strict mode)
-- **Build**: Vite 8 with `@vitejs/plugin-react` (Oxc transpilation)
+- **Frontend**: React 19 + TypeScript (stroga nastavitev)
+- **Gradnja**: Vite 8 z `@vitejs/plugin-react` (Oxc transpilacija)
 - **API**: GraphQL (Apollo Client)
-- **Containerization**: Docker + Docker Compose
+- **Kontejnerizacija**: Docker + Docker Compose
 
-## Prerequisites
+## Predpogoji
 
 - Node.js 20+
 - npm/yarn
-- Docker & Docker Compose (for running the full stack locally)
-- The backend GraphQL API running (see `sgc-navigator-backend`)
+- Docker & Docker Compose (za zagon polne sklope lokalno)
+- Zaledna GraphQL API (glejte `sgc-navigator-backend`)
 
-## Getting started
+## Začetek
 
 ```bash
 npm install
-npm run dev        # dev server at http://localhost:5173
+npm run dev        # razvojni strežnik na http://localhost:5173
 ```
 
-## Available commands
+## Dostopni ukazi
 
-| Command | Description |
+| Ukaz | Opis |
 |---|---|
-| `npm run dev` | Start Vite dev server with HMR |
-| `npm run build` | Type-check then build to `/dist` |
-| `npm run preview` | Preview the production build locally |
-| `npm run lint` | Run ESLint across all `.ts`/`.tsx` files |
+| `npm run dev` | Zagon Vite razvojnega strežnika s HMR |
+| `npm run build` | Preverjanje tipov in gradnja v `/dist` |
+| `npm run preview` | Predogled produkcijske gradnje lokalno |
+| `npm run lint` | Zagon ESLinta na vseh `.ts`/`.tsx` datotekah |
 
-## Project Structure
+## Struktura projekta
 
 ```
 src/
-├── main.tsx              # React app entry point
-├── App.tsx               # Root component
+├── main.tsx              # Vstopna točka React aplikacije
+├── App.tsx               # Koreninski komponent
 ├── components/
-│   ├── SearchBar/        # Term search with autocomplete
-│   ├── GraphView/        # Interactive concept graph (broader/narrower/related)
-│   └── TermDetail/       # Term detail panel (prefLabel, altLabel, scopeNote, SL/EN)
-├── api/                  # GraphQL client and queries
+│   ├── SearchBar/        # Iskanje izrazov z samodopolnjevanjem
+│   ├── GraphView/        # Interaktivni konceptni graf (širši/ožji/sorodna)
+│   └── TermDetail/       # Plošča s podrobnostmi izraza (prefLabel, altLabel, scopeNote, SL/EN)
+├── api/                  # GraphQL odjemalec in poizvedbe
 └── assets/
 ```
 
-**Key Pattern**: Functional components with React hooks, co-located CSS modules for styling.
-
-## Backend API
-
-The frontend communicates with a **GraphQL API** running on the backend. During development, the backend is expected at `http://localhost:8080`. 
-
-Set `VITE_API_BASE_URL` in `.env.local` to override the API endpoint:
-
-```
-VITE_API_BASE_URL=http://localhost:8080/graphql
-```
-
-Key GraphQL queries consumed:
-
-| Query | Purpose |
-|---|---|
-| `searchTerms(q: String!)` | Full-text term search by Slovenian or English label |
-| `getTerm(id: ID!)` | Fetch a single SKOS concept with all metadata (labels, scope notes) |
-| `getTermGraph(id: ID!)` | Fetch broader, narrower, and related concept neighbours |
-
-For detailed backend documentation, see `backend` repository.
-
+**Ključni vzorec**: Funkcijski komponenti s React hookami, skupno sklenjeni CSS moduli za oblikovanje.
 
 ## Docker
 
-A `Dockerfile` and `docker-compose.yml` are provided for containerized deployment and local full-stack development.
+`Dockerfile` in `docker-compose.yml` sta zagotovljena za kompartmentalizirano razporeditev in lokalni polno-skladni razvoj.
 
-### Local Development with Docker Compose
+### Lokalni razvoj z Docker Compose
 
-Start both frontend and backend services:
+Zagon obeh storitev frontend in backend:
 
 ```bash
 docker-compose up
 ```
 
-This starts:
-- Frontend at `http://localhost:5173` (Vite dev server with HMR)
-- Backend at `http://localhost:8080` (GraphQL endpoint)
+To zagoni:
+- Frontend na `http://localhost:5173` (Vite razvojni strežnik s HMR)
+- Backend na `http://localhost:8080` (GraphQL končna točka)
 
-### Production Build
+## CI/CD
 
-```bash
-docker build -t sgc-navigator-frontend:latest .
-docker run -p 3000:80 sgc-navigator-frontend:latest
-```
+GitHub Actions delovni tok samodejno:
 
-## CI/CD Pipeline
+- **Lint** — Zagon ESLinta na vseh `.ts`/`.tsx` datotekah
+- **Preverjanje tipov** — Validacija TypeScript kompilacije (`tsc -b`)
+- **Gradnja** — Ustvarjanje produkcijske gradnje (`npm run build`)
+- **Testi** — Zagon testne suite (ko je dodana)
 
-GitHub Actions workflow automatically:
+Vodovod se zagne na:
+- Vsak push na `main` / `develop` veje
+- Vse zahteve za povlečenje
 
-- **Lint** — Runs ESLint on all `.ts`/`.tsx` files
-- **Type Check** — Validates TypeScript compilation (`tsc -b`)
-- **Build** — Creates production build (`npm run build`)
-- **Tests** — Runs test suite (when added)
-
-Pipeline runs on:
-- Every push to `main` / `develop` branches
-- All pull requests
-
-Build artifacts are published to the repository (see Actions tab for details).
-
-## Notes
-
-- **TypeScript errors block the production build** — run `npm run build` before committing. The GitHub Actions pipeline will catch this automatically.
-- **React Compiler is disabled** — do not enable without updating `vite.config.ts`.
-- **No routing installed** — React Router should be added when multi-page navigation is needed beyond the main navigator view.
-- **GraphQL Queries** — All backend queries are in `src/api/`. Update these when backend schema changes.
-- **Backend Dependency** — The frontend requires the backend API running. See `sgc-navigator-backend` for backend setup.
