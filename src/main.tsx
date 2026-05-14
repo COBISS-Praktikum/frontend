@@ -3,17 +3,16 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import './i18n';
-import { ApolloClient, InMemoryCache, ApolloProvider } from '@apollo/client';
-
-const client = new ApolloClient({
-  uri: `${import.meta.env.VITE_API_URL}/graphql`, // Your Spring Boot endpoint
-  cache: new InMemoryCache(),
-});
+import { ApolloProvider } from "@apollo/client/react";
+import client from './apollo-client.ts';
+import { BrowserRouter as Router } from 'react-router-dom';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ApolloProvider client={client}>
-      <App />
+      <Router>
+        <App />
+      </Router>
     </ApolloProvider>
   </StrictMode>,
 )
