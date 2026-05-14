@@ -40,20 +40,6 @@ npm run dev        # razvojni strežnik na http://localhost:5173
 | `npm run preview` | Predogled produkcijske gradnje lokalno |
 | `npm run lint` | Zagon ESLinta na vseh `.ts`/`.tsx` datotekah |
 
-## Struktura projekta
-
-```
-src/
-├── main.tsx              # Vstopna točka React aplikacije
-├── App.tsx               # Koreninski komponent
-├── components/
-│   ├── SearchBar/        # Iskanje izrazov z samodopolnjevanjem
-│   ├── GraphView/        # Interaktivni konceptni graf (širši/ožji/sorodna)
-│   └── TermDetail/       # Plošča s podrobnostmi izraza (prefLabel, altLabel, scopeNote, SL/EN)
-├── api/                  # GraphQL odjemalec in poizvedbe
-└── assets/
-```
-
 **Ključni vzorec**: Funkcijski komponenti s React hookami, skupno sklenjeni CSS moduli za oblikovanje.
 
 ## Docker
