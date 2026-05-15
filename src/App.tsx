@@ -8,8 +8,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Globe } from 'lucide-react'
 import { Routes, Route } from 'react-router-dom';
-import SearchPage from './SearchPage';
-import GraphPage from './GraphPage';
+import SearchPage from './pages/SearchPage.tsx';
+import GraphPage from './pages/GraphPage.tsx';
 import './App.css'
 
 function App() {

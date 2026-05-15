@@ -3,8 +3,8 @@ import { gql } from "@apollo/client";
 import { useLazyQuery } from "@apollo/client/react";
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input.tsx';
+import { Button } from '@/components/ui/button.tsx';
 import './SearchPage.css';
 
 const SEARCH_CONCEPTS = gql`
