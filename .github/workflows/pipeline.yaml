@@ -1,10 +1,19 @@
-name: React CI
+name: React CI/CD (GitHub Pages)
 
 on:
   push:
-    branches: [ "main", "dev" ]
-  pull_request:
-    branches: [ "main" ]
+    branches: [ "main" ] # Only runs when pushing or merging into main
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
   pipeline:
@@ -24,19 +33,22 @@ jobs:
         run: npm ci
 
       - name: Lint Code
-        run: npm run lint # Recommended: catches bugs before they build
+        run: npm run lint
 
       # - name: Run Tests
       #   run: npm test -- --watchAll=false --passWithNoTests
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Build Application
+        run: npm run build
 
-      - name: Build Docker Image (Dry Run)
-        uses: docker/build-push-action@v5
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          context: .
-          push: false # We aren't pushing yet, just verifying the build works
-          tags: user/app:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          path: './dist'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
