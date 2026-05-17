@@ -7,6 +7,15 @@ import { Input } from '@/components/ui/input.tsx';
 import { Button } from '@/components/ui/button.tsx';
 import './SearchPage.css';
 
+interface ConceptSearchResult {
+  uri: string;
+  prefLabel: string;
+}
+
+interface SearchConceptsResponse {
+  searchConcepts: ConceptSearchResult[];
+}
+
 const SEARCH_CONCEPTS = gql`
   query SearchConcepts($text: String!) {
     searchConcepts(text: $text) {
@@ -19,9 +28,9 @@ const SEARCH_CONCEPTS = gql`
 function SearchPage() {
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
-  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [suggestions, setSuggestions] = useState<ConceptSearchResult[]>([]);
   const navigate = useNavigate();
-  const [searchConcepts, { loading, error }] = useLazyQuery<any>(SEARCH_CONCEPTS);
+  const [searchConcepts, { loading, error }] = useLazyQuery<SearchConceptsResponse>(SEARCH_CONCEPTS);
 
   const handleSearchChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const query = e.target.value;
