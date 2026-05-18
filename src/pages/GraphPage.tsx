@@ -429,9 +429,11 @@ function GraphPage() {
                                 nodeCanvasObject={(node: NodeObject<GraphNode>, ctx) => {
                                    // Draw the node circle
                                    const radius = 4;
+                                   const x = node.x ?? 0;
+                                   const y = node.y ?? 0;
                                    ctx.fillStyle = node.color || '#666';
                                    ctx.beginPath();
-                                   ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI);
+                                   ctx.arc(x, y, radius, 0, 2 * Math.PI);
                                    ctx.fill();
 
                                    // Draw simple label (skip background for perf)
@@ -441,8 +443,8 @@ function GraphPage() {
                                    ctx.fillStyle = '#001219';
                                    ctx.font = `bold ${fontSize}px Arial`;
                                    ctx.textAlign = 'center';
-                                   ctx.baseline = 'middle';
-                                   ctx.fillText(label, node.x, node.y - radius - 8);
+                                   ctx.textBaseline = 'middle';
+                                   ctx.fillText(label, x, y - radius - 8);
                                  }}
                                 onNodeClick={(node: GraphNode) => {
                                   // Resume animation on interaction so user can still drag/interact
@@ -458,9 +460,11 @@ function GraphPage() {
                                   }
                                 }}
                                 nodePointerAreaPaint={(node: NodeObject<GraphNode>, color: string, ctx: CanvasRenderingContext2D) => {
+                                   const x = node.x ?? 0;
+                                   const y = node.y ?? 0;
                                    ctx.fillStyle = color;
                                    ctx.beginPath();
-                                   ctx.arc(node.x, node.y, 6, 0, 2 * Math.PI);
+                                   ctx.arc(x, y, 6, 0, 2 * Math.PI);
                                    ctx.fill();
                                  }}
                                    onEngineStop={() => {
