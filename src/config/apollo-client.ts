@@ -1,42 +1,44 @@
 import { ApolloClient, InMemoryCache, HttpLink } from '@apollo/client';
 
-// Determine GraphQL endpoint
-// In development: use relative /graphql (proxied by Vite dev server)
-// In production: use full URL from environment variable (must be HTTPS for GitHub Pages)
-const getGraphqlUri = (): string => {
-  const isDev = !import.meta.env.PROD;
+const PROXY_ENDPOINT = 'https://corsproxy.io/?';
 
-  if (isDev) {
-    // In development, use relative path to benefit from Vite's dev server proxy
+// Determine GraphQL endpoint.
+// Development: use the local Vite proxy at /graphql.
+// Production: keep the backend URL in env, but route requests through an HTTPS proxy
+// because GitHub Pages cannot talk to the HTTP backend directly.
+const getGraphqlUri = (): string => {
+  if (!import.meta.env.PROD) {
     return '/graphql';
   }
 
-  // In production, construct full URL from environment variable
   const apiUrl = import.meta.env.VITE_API_URL;
   if (!apiUrl) {
     console.error('VITE_API_URL environment variable not set. Backend connection will fail.');
     return '/graphql';
   }
 
-  // Ensure HTTPS for production (required by GitHub Pages and mixed content policy)
-  if (apiUrl.startsWith('http://')) {
-    console.error(
-      'VITE_API_URL must use HTTPS for production deployment on GitHub Pages. ' +
-      'Current URL: ' + apiUrl + '. ' +
-      'Please update your backend to support HTTPS or use a reverse proxy.'
-    );
-  }
+  return apiUrl.endsWith('/') ? `${apiUrl}graphql` : `${apiUrl}/graphql`;
+};
 
-  // Ensure proper formatting of the GraphQL endpoint URL
-  return apiUrl.endsWith('/')
-    ? `${apiUrl}graphql`
-    : `${apiUrl}/graphql`;
+const createProxiedFetch = (): typeof fetch => {
+  return (input, init) => {
+    const requestUrl =
+      typeof input === 'string'
+        ? input
+        : input instanceof Request
+          ? input.url
+          : String(input);
+
+    const proxiedUrl = `${PROXY_ENDPOINT}${encodeURIComponent(requestUrl)}`;
+    return fetch(proxiedUrl, init);
+  };
 };
 
 const client = new ApolloClient({
   link: new HttpLink({
     uri: getGraphqlUri(),
-    credentials: 'include', // Send cookies if available
+    fetch: import.meta.env.PROD ? createProxiedFetch() : fetch,
+    credentials: 'omit',
   }),
   cache: new InMemoryCache(),
 });
