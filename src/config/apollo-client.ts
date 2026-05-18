@@ -2,7 +2,7 @@ import { ApolloClient, InMemoryCache, HttpLink } from '@apollo/client';
 
 // Determine GraphQL endpoint
 // In development: use relative /graphql (proxied by Vite dev server)
-// In production: use full URL from environment variable
+// In production: use full URL from environment variable (must be HTTPS for GitHub Pages)
 const getGraphqlUri = (): string => {
   const isDev = !import.meta.env.PROD;
 
@@ -14,8 +14,17 @@ const getGraphqlUri = (): string => {
   // In production, construct full URL from environment variable
   const apiUrl = import.meta.env.VITE_API_URL;
   if (!apiUrl) {
-    console.warn('VITE_API_URL environment variable not set');
+    console.error('VITE_API_URL environment variable not set. Backend connection will fail.');
     return '/graphql';
+  }
+
+  // Ensure HTTPS for production (required by GitHub Pages and mixed content policy)
+  if (apiUrl.startsWith('http://')) {
+    console.error(
+      'VITE_API_URL must use HTTPS for production deployment on GitHub Pages. ' +
+      'Current URL: ' + apiUrl + '. ' +
+      'Please update your backend to support HTTPS or use a reverse proxy.'
+    );
   }
 
   // Ensure proper formatting of the GraphQL endpoint URL
@@ -25,7 +34,10 @@ const getGraphqlUri = (): string => {
 };
 
 const client = new ApolloClient({
-  link: new HttpLink({ uri: getGraphqlUri() }),
+  link: new HttpLink({
+    uri: getGraphqlUri(),
+    credentials: 'include', // Send cookies if available
+  }),
   cache: new InMemoryCache(),
 });
 
