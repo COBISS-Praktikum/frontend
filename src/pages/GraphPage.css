@@ -1,0 +1,526 @@
+.graph-page {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.graph-shell {
+  width: min(1440px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.graph-tabs {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.graph-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.graph-title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.graph-title {
+  margin: 0;
+  font-size: clamp(1.5rem, 2vw, 2.2rem);
+  line-height: 1.15;
+  color: var(--cobiss-primary);
+}
+
+.graph-subtitle {
+  margin: 0;
+  color: #555;
+  word-break: break-word;
+}
+
+.graph-tabs-list {
+  align-self: flex-start;
+  flex-shrink: 0;
+}
+
+.graph-tab-content {
+  width: 100%;
+}
+
+.graph-card {
+  width: 100%;
+  border: 1px solid rgba(0, 18, 25, 0.12);
+  box-shadow: 0 18px 50px rgba(0, 18, 25, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 249, 250, 0.98));
+}
+
+.graph-card--placeholder {
+  min-height: 640px;
+}
+
+.graph-card--hierarchy {
+  min-height: 760px;
+}
+
+.graph-card-header {
+  border-bottom: 1px solid rgba(0, 18, 25, 0.08);
+  padding-bottom: 1rem;
+}
+
+.graph-card-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.graph-card-content {
+  padding-top: 0;
+}
+
+.graph-stage {
+  position: relative;
+  min-height: 680px;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid rgba(0, 18, 25, 0.08);
+  border-radius: 1rem;
+  background:
+    radial-gradient(circle at top left, rgba(10, 147, 150, 0.08), transparent 32%),
+    linear-gradient(180deg, #ffffff, #f8f9fa);
+}
+
+.graph-viewport {
+  width: 100%;
+  min-height: 680px;
+}
+
+.graph-overlay {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 1;
+  width: min(360px, calc(100% - 2rem));
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(0, 18, 25, 0.12);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 12px 30px rgba(0, 18, 25, 0.12);
+}
+
+.graph-overlay h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--cobiss-text);
+}
+
+.graph-overlay-uri,
+.graph-overlay-definition {
+  margin: 0;
+  color: #555;
+  line-height: 1.55;
+  word-break: break-word;
+}
+
+.graph-overlay-definition {
+  color: #444;
+}
+
+.graph-overlay-separator {
+  margin: 0.25rem 0;
+}
+
+.graph-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.graph-metric,
+.graph-placeholder-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.8rem;
+  border-radius: 0.8rem;
+  background: rgba(233, 216, 166, 0.18);
+  border: 1px solid rgba(0, 95, 115, 0.12);
+}
+
+.graph-metric span,
+.graph-placeholder-item span {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #666;
+}
+
+.graph-metric strong,
+.graph-placeholder-item strong {
+  font-size: 1.05rem;
+  color: var(--cobiss-text);
+}
+
+.graph-placeholder-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-top: 0;
+}
+
+.graph-hierarchy-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding-top: 0;
+}
+
+.hierarchy-view {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.hierarchy-root-wrap {
+  display: flex;
+  justify-content: center;
+}
+
+.hierarchy-root-card {
+  width: min(720px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem 1.1rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(0, 18, 25, 0.12);
+  border-left: 4px solid var(--cobiss-primary);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 249, 250, 0.98));
+  box-shadow: 0 14px 36px rgba(0, 18, 25, 0.08);
+}
+
+.hierarchy-root-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.hierarchy-root-title-row h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.2;
+  color: var(--cobiss-text);
+}
+
+.hierarchy-root-uri,
+.hierarchy-root-definition {
+  margin: 0;
+  color: #555;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.hierarchy-root-definition {
+  color: #444;
+}
+
+.hierarchy-root-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.hierarchy-root-stats div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(0, 95, 115, 0.12);
+  background: rgba(233, 216, 166, 0.16);
+}
+
+.hierarchy-root-stats span {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #666;
+}
+
+.hierarchy-root-stats strong {
+  font-size: 1.05rem;
+  color: var(--cobiss-text);
+}
+
+.hierarchy-branches {
+  display: grid;
+  gap: 1rem;
+}
+
+.hierarchy-section {
+  position: relative;
+  padding: 1rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(0, 18, 25, 0.08);
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 8px 26px rgba(0, 18, 25, 0.06);
+}
+
+.hierarchy-section--broader {
+  border-left: 4px solid var(--cobiss-primary);
+}
+
+.hierarchy-section--narrower {
+  border-left: 4px solid var(--cobiss-secondary);
+}
+
+.hierarchy-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.hierarchy-section-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--cobiss-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.hierarchy-section-toggle:hover {
+  opacity: 0.88;
+}
+
+.hierarchy-section-toggle-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 999px;
+  background: var(--cobiss-text);
+  color: white;
+  font-size: 1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.hierarchy-section-title {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.hierarchy-section-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(0, 95, 115, 0.12);
+  color: var(--cobiss-primary);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.hierarchy-section-description {
+  margin: 0;
+  max-width: 52rem;
+  color: #5b5b5b;
+  line-height: 1.55;
+}
+
+.hierarchy-node-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  margin-top: 1rem;
+  margin-left: 1rem;
+  padding-left: 1rem;
+  border-left: 1px solid rgba(0, 18, 25, 0.12);
+}
+
+.hierarchy-node-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 0.85rem 1rem;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(0, 18, 25, 0.08);
+  border-left: 4px solid var(--cobiss-secondary);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 250, 250, 0.98));
+  box-shadow: 0 10px 22px rgba(0, 18, 25, 0.06);
+}
+
+.hierarchy-node-card--button {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  appearance: none;
+  border-right: 1px solid rgba(0, 18, 25, 0.08);
+  font: inherit;
+}
+
+.hierarchy-node-card--button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px rgba(0, 18, 25, 0.09);
+}
+
+.hierarchy-node-card--button:focus-visible {
+  outline: 3px solid rgba(0, 95, 115, 0.22);
+  outline-offset: 2px;
+}
+
+.hierarchy-section--broader .hierarchy-node-card {
+  border-left-color: var(--cobiss-primary);
+}
+
+.hierarchy-node-mark {
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.2rem;
+  border-radius: 999px;
+  background: var(--cobiss-secondary);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.92);
+  flex-shrink: 0;
+}
+
+.hierarchy-node-mark--root {
+  width: 1.15rem;
+  height: 1.15rem;
+  background: var(--cobiss-primary);
+}
+
+.hierarchy-node-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.hierarchy-node-content h5 {
+  margin: 0;
+  font-size: 0.98rem;
+  line-height: 1.3;
+  color: var(--cobiss-text);
+}
+
+.hierarchy-node-card--button .hierarchy-node-content h5 {
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 0.14em;
+}
+
+.hierarchy-node-card--button:hover .hierarchy-node-content h5,
+.hierarchy-node-card--button:focus-visible .hierarchy-node-content h5 {
+  text-decoration-color: rgba(0, 18, 25, 0.28);
+}
+
+.hierarchy-node-content p {
+  margin: 0;
+  color: #5a5a5a;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.hierarchy-empty-state {
+  margin-top: 1rem;
+  padding: 0.95rem 1rem;
+  border-radius: 0.9rem;
+  border: 1px dashed rgba(0, 18, 25, 0.18);
+  background: rgba(248, 249, 250, 0.96);
+  color: #666;
+}
+
+.graph-placeholder-content p {
+  margin: 0;
+  color: #555;
+  line-height: 1.7;
+}
+
+.graph-placeholder-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+@media (max-width: 900px) {
+  .graph-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .graph-tabs-list {
+    align-self: stretch;
+  }
+
+  .graph-metrics,
+  .graph-placeholder-grid,
+  .hierarchy-root-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .graph-stage,
+  .graph-viewport,
+  .graph-card--placeholder,
+  .graph-card--hierarchy {
+    min-height: 560px;
+  }
+
+  .hierarchy-node-list {
+    margin-left: 0.5rem;
+    padding-left: 0.75rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .graph-shell {
+    padding: 0.5rem;
+  }
+
+  .graph-overlay {
+    position: static;
+    width: 100%;
+    max-width: none;
+    margin: 0.75rem;
+  }
+
+  .graph-stage {
+    flex-direction: column;
+  }
+
+  .graph-viewport {
+    min-height: 440px;
+  }
+
+  .hierarchy-section-head {
+    flex-direction: column;
+  }
+
+  .hierarchy-node-card {
+    padding: 0.8rem 0.9rem;
+  }
+}
+

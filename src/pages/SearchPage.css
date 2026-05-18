@@ -1,11 +1,23 @@
+.search-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
 .suggestions-list {
   list-style: none;
   padding: 0;
-  margin: 10px 0 0;
+  margin: 0.5rem 0 0 0;
   border: 1px solid #ccc;
   border-radius: 4px;
-  max-height: 200px;
+  max-height: 250px;
   overflow-y: auto;
+  width: 100%;
+  max-width: 600px;
+  background: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .suggestions-list li {

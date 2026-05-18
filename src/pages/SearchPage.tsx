@@ -46,39 +46,41 @@ function SearchPage() {
   };
 
   const handleSuggestionClick = (uri: string) => {
-    navigate(`/graph/${encodeURIComponent(uri)}`);
+    navigate(`/frontend/graph/${encodeURIComponent(uri)}`);
   };
 
   return (
-    <section className="hero-section">
-      <div className="hero-content">
-        <h2 className="hero-title">{t('heroTitle')}</h2>
-        <p className="hero-subtitle">{t('heroSubtitle')}</p>
-        <div className="search-container">
-          <div className="search-wrapper">
-            <Input
-              type="text"
-              placeholder={t('searchPlaceholder')}
-              value={searchQuery}
-              onChange={handleSearchChange}
-              className="search-input"
-            />
-            <Button className="search-button">{t('searchButton')}</Button>
+      <div className="search-page-wrapper" style={{ width: '100%' }}>
+      <section className="hero-section">
+        <div className="hero-content">
+          <h2 className="hero-title">{t('heroTitle')}</h2>
+          <p className="hero-subtitle">{t('heroSubtitle')}</p>
+          <div className="search-container">
+            <div className="search-wrapper">
+              <Input
+                type="text"
+                placeholder={t('searchPlaceholder')}
+                value={searchQuery}
+                onChange={handleSearchChange}
+                className="search-input"
+              />
+              <Button className="search-button">{t('searchButton')}</Button>
+            </div>
+            {loading && <p>Loading...</p>}
+            {error && <p>Error: {error.message}</p>}
+            {suggestions.length > 0 && (
+              <ul className="suggestions-list">
+                {suggestions.map((concept) => (
+                  <li key={concept.uri} onClick={() => handleSuggestionClick(concept.uri)}>
+                    {concept.prefLabel}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-          {loading && <p>Loading...</p>}
-          {error && <p>Error: {error.message}</p>}
-          {suggestions.length > 0 && (
-            <ul className="suggestions-list">
-              {suggestions.map((concept) => (
-                <li key={concept.uri} onClick={() => handleSuggestionClick(concept.uri)}>
-                  {concept.prefLabel}
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
-      </div>
-    </section>
+      </section>
+    </div>
   );
 }
 
