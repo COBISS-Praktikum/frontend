@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { flushSync } from 'react-dom';
 import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
-import ForceGraph2D from 'react-force-graph-2d';
+import ForceGraph2D, { type ForceGraphMethods, type NodeObject } from 'react-force-graph-2d';
 import { Badge } from '@/components/ui/badge.tsx';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card.tsx';
 import { Separator } from '@/components/ui/separator.tsx';
@@ -30,6 +30,9 @@ interface GraphNode {
   id: string;
   name: string;
   uri: string;
+  x?: number;
+  y?: number;
+  color?: string;
 }
 
 interface GraphLink {
@@ -130,7 +133,7 @@ function GraphPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const graphViewportRef = useRef<HTMLDivElement | null>(null);
-  const fgRef = useRef<any>(null);
+  const fgRef = useRef<ForceGraphMethods<GraphNode, GraphLink> | undefined>(undefined);
   const startTimeRef = useRef<number | null>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [hierarchyExpanded, setHierarchyExpanded] = useState({
@@ -256,8 +259,8 @@ function GraphPage() {
     const nodes = Array.from(nodeMap.values());
     const angleStep = nodes.length > 1 ? (2 * Math.PI) / nodes.length : 0;
     nodes.forEach((node, i) => {
-      (node as any).x = Math.cos(i * angleStep) * 80;
-      (node as any).y = Math.sin(i * angleStep) * 80;
+      node.x = Math.cos(i * angleStep) * 80;
+      node.y = Math.sin(i * angleStep) * 80;
     });
 
     return { nodes, links };
@@ -267,20 +270,17 @@ function GraphPage() {
   useEffect(() => {
     if (data && startTimeRef.current !== null) {
       const ms = Math.round(performance.now() - startTimeRef.current);
-      // eslint-disable-next-line no-console
       console.debug(`[GraphPage] data received after ${ms} ms`);
     }
   }, [data]);
 
   // Log basic graph stats when graph data is produced
   useEffect(() => {
-    // eslint-disable-next-line no-console
     console.debug(`[GraphPage] graph data updated: nodes=${graphData.nodes.length} links=${graphData.links.length}`);
   }, [graphData]);
 
   // Log when viewport size changes
   useEffect(() => {
-    // eslint-disable-next-line no-console
     console.debug(`[GraphPage] viewport size state: ${viewportSize.width}x${viewportSize.height}`);
   }, [viewportSize]);
 
@@ -426,7 +426,7 @@ function GraphPage() {
                                 d3AlphaMin={0.01}
                                 cooldownTicks={30}
                                 cooldownTime={300}
-                                nodeCanvasObject={(node: any, ctx) => {
+                                nodeCanvasObject={(node: NodeObject<GraphNode>, ctx) => {
                                    // Draw the node circle
                                    const radius = 4;
                                    ctx.fillStyle = node.color || '#666';
@@ -451,13 +451,13 @@ function GraphPage() {
                                   }
                                   handleConceptClick(node.uri, 'graph');
                                 }}
-                                onNodeHover={(node: any) => {
+                                onNodeHover={(node: NodeObject<GraphNode> | null) => {
                                   // Resume animation on hover for smooth interaction
                                   if (node && fgRef.current?.resumeAnimation) {
                                     fgRef.current.resumeAnimation();
                                   }
                                 }}
-                                nodePointerAreaPaint={(node: any, color, ctx) => {
+                                nodePointerAreaPaint={(node: NodeObject<GraphNode>, color: string, ctx: CanvasRenderingContext2D) => {
                                    ctx.fillStyle = color;
                                    ctx.beginPath();
                                    ctx.arc(node.x, node.y, 6, 0, 2 * Math.PI);
@@ -469,7 +469,6 @@ function GraphPage() {
 
                                      if (startTimeRef.current !== null) {
                                        const ms = Math.round(performance.now() - startTimeRef.current);
-                                       // eslint-disable-next-line no-console
                                        console.debug(`[GraphPage] engine stopped after ${ms} ms`);
                                        startTimeRef.current = null;
                                      }
