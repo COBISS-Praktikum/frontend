@@ -1,14 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
 import ForceGraph2D, { type ForceGraphMethods, type NodeObject } from 'react-force-graph-2d';
+import { Handle, Position, ReactFlow, type Edge, type Node, type NodeProps } from '@xyflow/react';
 import { Badge } from '@/components/ui/badge.tsx';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card.tsx';
 import { Separator } from '@/components/ui/separator.tsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.tsx';
 import { Footer } from '@/components/layout/Footer.tsx';
 import { stripLanguageTag } from '@/lib/utils.ts';
+import '@xyflow/react/dist/style.css';
 import './GraphPage.css';
 
 interface ConceptNode {
@@ -22,6 +24,7 @@ interface Concept extends ConceptNode {
   definition?: string;
   broader?: ConceptNode[];
   narrower?: ConceptNode[];
+  related?: ConceptNode[];
 }
 
 interface GetConceptResponse {
@@ -47,69 +50,240 @@ interface GraphData {
   links: GraphLink[];
 }
 
-interface HierarchySectionProps {
-  relation: 'broader' | 'narrower';
-  title: string;
-  description: string;
-  items: ConceptNode[] | undefined;
-  expanded: boolean;
-  onToggle: () => void;
-  onItemClick: (item: ConceptNode) => void;
-  emptyLabel: string;
+
+type HierarchyNodeKind = 'root' | 'broader' | 'shared' | 'narrower';
+type HierarchyRelationKind = 'broader' | 'narrower' | 'related';
+
+interface HierarchyNodeData extends Record<string, unknown> {
+  label: string;
+  uri: string;
+  kind: HierarchyNodeKind;
+  relations: HierarchyRelationKind[];
+  onClick: (uri: string) => void;
 }
 
-function HierarchySection({
-                            relation,
-                            title,
-                            description,
-                            items,
-                            expanded,
-                            onToggle,
-                            onItemClick,
-                            emptyLabel,
-                          }: HierarchySectionProps) {
-  const itemCount = items?.length ?? 0;
+interface HierarchyEdgeData extends Record<string, unknown> {
+  relation: HierarchyRelationKind | 'shared';
+}
+
+type HierarchyFlowNode = Node<HierarchyNodeData, 'hierarchyConcept'>;
+type HierarchyFlowEdge = Edge<HierarchyEdgeData>;
+
+function getHierarchyNodeSize(kind: HierarchyNodeKind, label: string, relationCount = 1) {
+  const baseWidth = kind === 'root' ? 300 : kind === 'shared' ? 290 : 250;
+  const charsPerLine = kind === 'root' ? 22 : kind === 'shared' ? 20 : 24;
+  const lines = Math.max(1, Math.ceil(Math.max(label.length, 12) / charsPerLine));
+  const relationRows = kind === 'root' ? 0 : relationCount > 1 ? 1 : 0;
+
+  return {
+    width: baseWidth,
+    height: (kind === 'root' ? 74 : kind === 'shared' ? 72 : 58) + (lines - 1) * 18 + relationRows * 22,
+  };
+}
+
+function buildHierarchyLayout(nodes: HierarchyFlowNode[], edges: HierarchyFlowEdge[]) {
+  const rootNode = nodes.find((node) => node.data.kind === 'root');
+  if (!rootNode) return { nodes, edges };
+
+  const getSize = (node: HierarchyFlowNode) => ({
+    width: typeof node.style?.width === 'number' ? node.style.width : getHierarchyNodeSize(node.data.kind, node.data.label).width,
+    height: typeof node.style?.height === 'number' ? node.style.height : getHierarchyNodeSize(node.data.kind, node.data.label).height,
+  });
+
+  const broaderNodes = nodes.filter((n) => n.data.kind === 'broader');
+  const sharedNodes = nodes.filter((n) => n.data.kind === 'shared');
+  const narrowerNodes = nodes.filter((n) => n.data.kind === 'narrower');
+  const vGap = 60;
+  const branchGap = 140;
+
+  const rootSize = getSize(rootNode);
+
+  const layoutColumn = (row: HierarchyFlowNode[], startY: number) => {
+    let y = startY;
+
+    return row.map((node) => {
+      const size = getSize(node);
+      const positioned = { ...node, position: { x: rootSize.width / 2 + branchGap, y } };
+      y += size.height + vGap;
+      return positioned;
+    });
+  };
+
+  const columnHeight = (row: HierarchyFlowNode[]) =>
+    row.length > 0 ? row.reduce((sum, node) => sum + getSize(node).height, 0) + vGap * (row.length - 1) : 0;
+
+  const rootY = 0;
+  const broaderStartY = -(vGap + columnHeight(broaderNodes));
+  const relatedStartY = rootSize.height + vGap;
+  const narrowerStartY = relatedStartY + columnHeight(sharedNodes) + vGap;
+
+  return {
+    nodes: [
+      { ...rootNode, position: { x: -rootSize.width / 2, y: rootY } },
+      ...layoutColumn(broaderNodes, broaderStartY),
+      ...layoutColumn(sharedNodes, relatedStartY),
+      ...layoutColumn(narrowerNodes, narrowerStartY),
+    ],
+    edges,
+  };
+}
+
+const HierarchyConceptNode = memo(function HierarchyConceptNode({ data }: NodeProps<HierarchyFlowNode>) {
+  const label = stripLanguageTag(data.label);
+  const relationLabel =
+    data.kind === 'root'
+      ? 'Open selected term'
+      : data.kind === 'broader'
+        ? 'Open broader term'
+        : data.kind === 'narrower'
+          ? 'Open narrower term'
+          : 'Open related term';
+  const relationChips = data.kind === 'root' ? [] : data.relations.map((relation) => relation);
+  const ariaLabel = `${relationLabel} ${label}`;
 
   return (
-      <section className={`hierarchy-section hierarchy-section--${relation}`}>
-        <div className="hierarchy-section-head">
-          <button
-              type="button"
-              className="hierarchy-section-toggle"
-              onClick={onToggle}
-              aria-expanded={expanded}
-          >
-            <span className="hierarchy-section-toggle-mark">{expanded ? '−' : '+'}</span>
-            <span className="hierarchy-section-title">{title}</span>
-            <span className="hierarchy-section-count">{itemCount}</span>
-          </button>
-          <p className="hierarchy-section-description">{description}</p>
-        </div>
+    <div className={`hierarchy-flow-node hierarchy-flow-node--${data.kind}`}>
+      {data.kind === 'root' ? null : (
+        <Handle type="target" position={Position.Left} className="hierarchy-flow-handle hierarchy-flow-handle--target" />
+      )}
 
-        {expanded ? (
-            itemCount > 0 ? (
-                <div className="hierarchy-node-list">
-                  {items?.map((item) => (
-                      <button
-                          key={item.uri}
-                          type="button"
-                          className="hierarchy-node-card hierarchy-node-card--button"
-                          onClick={() => onItemClick(item)}
-                      >
-                        <span className="hierarchy-node-mark" aria-hidden="true" />
-                        <div className="hierarchy-node-content">
-                          <h5>{stripLanguageTag(item.prefLabel)}</h5>
-                          <p>{item.uri}</p>
-                        </div>
-                      </button>
-                  ))}
-                </div>
-            ) : (
-                <div className="hierarchy-empty-state">{emptyLabel}</div>
-            )
-        ) : null}
-      </section>
+      <button
+        type="button"
+        className={`hierarchy-flow-node-card hierarchy-flow-node-card--${data.kind} nodrag nopan`}
+        onClick={() => data.onClick(data.uri)}
+        onMouseDown={(e) => e.stopPropagation()}
+        title={data.uri}
+        aria-label={ariaLabel}
+      >
+        <span className="hierarchy-flow-node-icon" aria-hidden="true">
+          ✳
+        </span>
+        <span className="hierarchy-flow-node-copy">
+          <span className="hierarchy-flow-node-title">{label}</span>
+          {relationChips.length > 0 ? (
+            <span className="hierarchy-flow-node-relations" aria-hidden="true">
+              {relationChips.map((relation) => (
+                <span key={relation} className={`hierarchy-flow-node-relation hierarchy-flow-node-relation--${relation}`}>
+                  {relation}
+                </span>
+              ))}
+            </span>
+          ) : null}
+        </span>
+      </button>
+
+      {data.kind === 'root' ? (
+        <Handle type="source" position={Position.Right} className="hierarchy-flow-handle hierarchy-flow-handle--source" />
+      ) : null}
+    </div>
   );
+});
+
+const HIERARCHY_NODE_TYPES = {
+  hierarchyConcept: HierarchyConceptNode,
+};
+
+function createHierarchyNode(kind: HierarchyNodeKind, item: ConceptNode, onClick: (uri: string) => void, relations: HierarchyRelationKind[] = []): HierarchyFlowNode {
+  const label = stripLanguageTag(item.prefLabel ?? item.prefLabelEn ?? item.prefLabelSl ?? item.uri) || item.uri;
+  const { width, height } = getHierarchyNodeSize(kind, label, relations.length);
+
+  return {
+    id: `${kind}:${item.uri}`,
+    type: 'hierarchyConcept',
+    position: { x: 0, y: 0 },
+    data: {
+      label,
+      uri: item.uri,
+      kind,
+      relations,
+      onClick,
+    },
+    draggable: false,
+    selectable: false,
+    focusable: false,
+    sourcePosition: kind === 'root' ? Position.Right : Position.Right,
+    targetPosition: kind === 'root' ? Position.Right : Position.Left,
+    style: {
+      width,
+      height,
+    },
+  };
+}
+
+function createHierarchyRootNode(concept: Concept, onClick: (uri: string) => void): HierarchyFlowNode {
+  return createHierarchyNode('root', concept, onClick, []);
+}
+
+function buildHierarchyNodes(
+  concept: Concept,
+  broader: ConceptNode[],
+  narrower: ConceptNode[],
+  related: ConceptNode[],
+  onClick: (uri: string) => void,
+) {
+  const grouped = new Map<string, { item: ConceptNode; relations: Set<HierarchyRelationKind> }>();
+
+  const add = (relation: HierarchyRelationKind, item: ConceptNode) => {
+    const current = grouped.get(item.uri) ?? { item, relations: new Set<HierarchyRelationKind>() };
+    current.item = item;
+    current.relations.add(relation);
+    grouped.set(item.uri, current);
+  };
+
+  broader.forEach((item) => add('broader', item));
+  narrower.forEach((item) => add('narrower', item));
+  related.forEach((item) => add('related', item));
+
+  const relationToKind = (relations: HierarchyRelationKind[]): Exclude<HierarchyNodeKind, 'root'> => {
+    if (relations.length > 1) return 'shared';
+    if (relations[0] === 'broader') return 'broader';
+    if (relations[0] === 'narrower') return 'narrower';
+    return 'shared';
+  };
+
+  const sortedEntries = Array.from(grouped.values()).sort((left, right) => {
+    const priority = (relations: HierarchyRelationKind[]) => {
+      if (relations.includes('broader') && !relations.includes('narrower') && !relations.includes('related')) return 0;
+      if (relations.length > 1) return 1;
+      if (relations.includes('related')) return 2;
+      return 3;
+    };
+
+    const leftPriority = priority(Array.from(left.relations));
+    const rightPriority = priority(Array.from(right.relations));
+    if (leftPriority !== rightPriority) return leftPriority - rightPriority;
+    return getConceptLabel(left.item).localeCompare(getConceptLabel(right.item), undefined, { sensitivity: 'base' });
+  });
+
+  const nodes: HierarchyFlowNode[] = [createHierarchyRootNode(concept, onClick)];
+  const edges: HierarchyFlowEdge[] = [];
+
+  sortedEntries.forEach(({ item, relations }) => {
+    const relationList = Array.from(relations);
+    const kind = relationToKind(relationList);
+    const node = createHierarchyNode(kind, item, onClick, relationList);
+    nodes.push(node);
+
+    const edgeRelation = relationList.length === 1 ? relationList[0] : 'shared';
+    const source = kind === 'broader' ? node.id : `root:${concept.uri}`;
+    const target = kind === 'broader' ? `root:${concept.uri}` : node.id;
+
+    edges.push({
+      id: `${source}->${target}`,
+      source,
+      target,
+      type: 'step',
+      selectable: false,
+      focusable: false,
+      data: { relation: edgeRelation },
+    });
+  });
+
+  return buildHierarchyLayout(nodes, edges);
+}
+
+function getConceptLabel(item: ConceptNode) {
+  return stripLanguageTag(item.prefLabel ?? item.prefLabelEn ?? item.prefLabelSl ?? item.uri) || item.uri;
 }
 
 const GET_CONCEPT = gql`
@@ -132,6 +306,12 @@ const GET_CONCEPT = gql`
         prefLabelSl
         prefLabelEn
       }
+      related {
+        uri
+        prefLabel
+        prefLabelSl
+        prefLabelEn
+      }
     }
   }
 `;
@@ -143,10 +323,9 @@ function GraphPage() {
   const fgRef = useRef<ForceGraphMethods<GraphNode, GraphLink> | undefined>(undefined);
   const [graphViewportElement, setGraphViewportElement] = useState<HTMLDivElement | null>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
-  const [hierarchyExpanded, setHierarchyExpanded] = useState({
-    broader: true,
-    narrower: true,
-  });
+  const hierarchyFlowInstanceRef = useRef<{ fitView: (options?: { padding?: number }) => void } | null>(null);
+  const [hierarchyViewportElement, setHierarchyViewportElement] = useState<HTMLDivElement | null>(null);
+  const [hierarchyViewportSize, setHierarchyViewportSize] = useState({ width: 0, height: 0 });
   const { loading, error, data } = useQuery<GetConceptResponse>(GET_CONCEPT, {
     variables: { uri: decodeURIComponent(uri || '') },
   });
@@ -182,6 +361,36 @@ function GraphPage() {
     };
   }, [graphViewportElement]);
 
+  useEffect(() => {
+    if (!hierarchyViewportElement) {
+      return;
+    }
+
+    const measure = () => {
+      const { width, height } = hierarchyViewportElement.getBoundingClientRect();
+      const nextWidth = Math.max(0, Math.floor(width));
+      const nextHeight = Math.max(0, Math.floor(height));
+
+      setHierarchyViewportSize((current) => {
+        if (current.width === nextWidth && current.height === nextHeight) {
+          return current;
+        }
+
+        return { width: nextWidth, height: nextHeight };
+      });
+
+    };
+
+    const rafId = requestAnimationFrame(measure);
+    const resizeObserver = new ResizeObserver(measure);
+    resizeObserver.observe(hierarchyViewportElement);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      resizeObserver.disconnect();
+    };
+  }, [hierarchyViewportElement]);
+
   const graphData = useMemo<GraphData>(() => {
     if (!data || !data.concept) {
       return { nodes: [], links: [] };
@@ -191,28 +400,26 @@ function GraphPage() {
     const nodeMap = new Map<string, GraphNode>();
     const links: GraphLink[] = [];
 
+    const addNode = (item: ConceptNode) => {
+      if (!nodeMap.has(item.uri)) {
+        nodeMap.set(item.uri, { id: item.uri, name: getConceptLabel(item), uri: item.uri });
+      }
+    };
+
+    const addRelationGroup = (items: ConceptNode[] | undefined) => {
+      items?.forEach((item) => {
+        addNode(item);
+        links.push({ source: concept.uri, target: item.uri });
+      });
+    };
+
     // Add the main concept
-    nodeMap.set(concept.uri, { id: concept.uri, name: stripLanguageTag(concept.prefLabel), uri: concept.uri });
+    addNode(concept);
 
-    // Add broader concepts
-    if (concept.broader) {
-      concept.broader.forEach((b: ConceptNode) => {
-        if (!nodeMap.has(b.uri)) {
-          nodeMap.set(b.uri, { id: b.uri, name: stripLanguageTag(b.prefLabel), uri: b.uri });
-        }
-        links.push({ source: concept.uri, target: b.uri });
-      });
-    }
-
-    // Add narrower concepts
-    if (concept.narrower) {
-      concept.narrower.forEach((n: ConceptNode) => {
-        if (!nodeMap.has(n.uri)) {
-          nodeMap.set(n.uri, { id: n.uri, name: stripLanguageTag(n.prefLabel), uri: n.uri });
-        }
-        links.push({ source: concept.uri, target: n.uri });
-      });
-    }
+    // Add broader, narrower, and related concepts
+    addRelationGroup(concept.broader);
+    addRelationGroup(concept.narrower);
+    addRelationGroup(concept.related);
 
     // Pre-position nodes in a circle so d3 starts from a reasonable layout
     // and needs far fewer ticks to converge.
@@ -227,22 +434,21 @@ function GraphPage() {
   }, [data]);
 
   const concept = data?.concept;
-  const hierarchyBroaderTerms = useMemo(() => {
+  const broaderTerms = useMemo(() => {
     const broader = concept?.broader ?? [];
-    const narrowerUris = new Set((concept?.narrower ?? []).map((item) => item.uri));
     const seen = new Set<string>();
 
     return broader.filter((item) => {
-      if (narrowerUris.has(item.uri) || seen.has(item.uri)) {
+      if (seen.has(item.uri)) {
         return false;
       }
 
       seen.add(item.uri);
       return true;
     });
-  }, [concept?.broader, concept?.narrower]);
+  }, [concept?.broader]);
 
-  const hierarchyNarrowerTerms = useMemo(() => {
+  const narrowerTerms = useMemo(() => {
     const narrower = concept?.narrower ?? [];
     const seen = new Set<string>();
 
@@ -256,30 +462,56 @@ function GraphPage() {
     });
   }, [concept?.narrower]);
 
-  const broaderCount = hierarchyBroaderTerms.length;
-  const narrowerCount = hierarchyNarrowerTerms.length;
+  const broaderCount = broaderTerms.length;
+  const narrowerCount = narrowerTerms.length;
   const activeTab = searchParams.get('tab') === 'hierarchy' ? 'hierarchy' : 'graph';
 
-  const buildConceptUrl = (targetUri: string, tab: 'graph' | 'hierarchy') =>
-      `/frontend/graph/${encodeURIComponent(targetUri)}?tab=${tab}`;
+  const buildConceptUrl = useCallback(
+    (targetUri: string, tab: 'graph' | 'hierarchy') => `/frontend/graph/${encodeURIComponent(targetUri)}?tab=${tab}`,
+    [],
+  );
 
-  const handleTabChange = (value: string) => {
+  const handleTabChange = useCallback((value: string) => {
     const nextTab = value === 'hierarchy' ? 'hierarchy' : 'graph';
     const nextParams = new URLSearchParams(searchParams);
     nextParams.set('tab', nextTab);
     setSearchParams(nextParams, { replace: true });
-  };
+  }, [searchParams, setSearchParams]);
 
-  const handleConceptClick = (targetUri: string, tab: 'graph' | 'hierarchy') => {
+  const handleConceptClick = useCallback((targetUri: string, tab: 'graph' | 'hierarchy') => {
     navigate(buildConceptUrl(targetUri, tab));
-  };
+  }, [buildConceptUrl, navigate]);
 
-  const toggleHierarchySection = (section: 'broader' | 'narrower') => {
-    setHierarchyExpanded((current) => ({
-      ...current,
-      [section]: !current[section],
-    }));
-  };
+  const handleHierarchyConceptClick = useCallback((targetUri: string) => {
+    navigate(buildConceptUrl(targetUri, activeTab));
+  }, [activeTab, buildConceptUrl, navigate]);
+
+  const hierarchyFlow = useMemo(() => {
+    if (!concept) {
+      return {
+        nodes: [],
+        edges: [],
+      };
+    }
+
+    return buildHierarchyNodes(concept, broaderTerms, narrowerTerms, concept.related ?? [], handleHierarchyConceptClick);
+  }, [concept, broaderTerms, narrowerTerms, handleHierarchyConceptClick]);
+
+  useEffect(() => {
+    if (activeTab !== 'hierarchy') {
+      return;
+    }
+
+    if (hierarchyViewportSize.width <= 0 || hierarchyViewportSize.height <= 0 || hierarchyFlow.nodes.length === 0) {
+      return;
+    }
+
+    const rafId = requestAnimationFrame(() => {
+      hierarchyFlowInstanceRef.current?.fitView({ padding: 0.22 });
+    });
+
+    return () => cancelAnimationFrame(rafId);
+  }, [activeTab, hierarchyFlow.nodes.length, hierarchyViewportSize.height, hierarchyViewportSize.width]);
 
   if (loading) return <p>Loading...</p>;
   if (error) return <p>Error: {error.message}</p>;
@@ -418,58 +650,56 @@ function GraphPage() {
                       <Badge variant="outline">Hierarchy</Badge>
                       <CardTitle>Concept hierarchy</CardTitle>
                       <CardDescription>
-                        Browse the selected concept as a compact tree with broader terms above and narrower terms below.
+                        Browse the selected concept with broader terms above, shared/related terms grouped once, and narrower terms below.
                       </CardDescription>
                     </div>
                   </CardHeader>
 
                   <CardContent className="graph-hierarchy-content">
-                    <div className="hierarchy-view">
-                      <HierarchySection
-                          relation="broader"
-                          title="Broader terms"
-                          description="More general concepts that sit above the selected term."
-                          items={hierarchyBroaderTerms}
-                          expanded={hierarchyExpanded.broader}
-                          onToggle={() => toggleHierarchySection('broader')}
-                          onItemClick={(item) => handleConceptClick(item.uri, 'hierarchy')}
-                          emptyLabel="No broader terms are available for this concept."
-                      />
+                    <div className="hierarchy-flow-shell">
+                      <div ref={setHierarchyViewportElement} className="hierarchy-flow" aria-label="Concept hierarchy tree">
+                        {hierarchyViewportSize.width > 0 && hierarchyViewportSize.height > 0 && hierarchyFlow.nodes.length > 0 ? (
+                          <ReactFlow<HierarchyFlowNode, HierarchyFlowEdge>
+                            nodes={hierarchyFlow.nodes}
+                            edges={hierarchyFlow.edges}
+                            nodeTypes={HIERARCHY_NODE_TYPES}
+                            width={hierarchyViewportSize.width}
+                            height={hierarchyViewportSize.height}
+                            style={{ width: '100%', height: '100%' }}
+                            onInit={(instance) => {
+                              hierarchyFlowInstanceRef.current = instance;
 
-                      <div className="hierarchy-root-wrap">
-                        <div className="hierarchy-root-card">
-                          <Badge variant="secondary">Selected term</Badge>
-                          <div className="hierarchy-root-title-row">
-                            <span className="hierarchy-node-mark hierarchy-node-mark--root" aria-hidden="true" />
-                            <h3>{stripLanguageTag(concept.prefLabel)}</h3>
-                          </div>
-                          <p className="hierarchy-root-uri">{concept.uri}</p>
-                          <p className="hierarchy-root-definition">
-                            {concept.definition ?? 'No definition is available for this concept yet.'}
-                          </p>
-                          <div className="hierarchy-root-stats" aria-label="Hierarchy summary">
-                            <div>
-                              <span>Broader</span>
-                              <strong>{broaderCount}</strong>
-                            </div>
-                            <div>
-                              <span>Narrower</span>
-                              <strong>{narrowerCount}</strong>
-                            </div>
-                          </div>
-                        </div>
+                              try {
+                                instance.fitView({ padding: 0.18 });
+                              } catch {
+                                // ignore
+                              }
+                            }}
+                            minZoom={0.45}
+                            maxZoom={1.3}
+                            panOnDrag
+                            zoomOnScroll={false}
+                            zoomOnPinch
+                            nodeClickDistance={0}
+                            nodesDraggable={false}
+                            nodesConnectable={false}
+                            elementsSelectable={false}
+                            preventScrolling={false}
+                            defaultEdgeOptions={{
+                              type: 'smoothstep', // Gives those crisp right angles with tiny rounded elbow points
+                              focusable: false,
+                              selectable: false,
+                              style: {
+                                stroke: '#0a9396', // Uses your brand teal line tracking color
+                                strokeWidth: 2.5,
+                              },
+                            }}
+                            proOptions={{ hideAttribution: true }}
+                          />
+                        ) : (
+                          <div className="hierarchy-empty-state">Preparing hierarchy view…</div>
+                        )}
                       </div>
-
-                      <HierarchySection
-                          relation="narrower"
-                          title="Narrower terms"
-                          description="More specific concepts that branch out from the selected term."
-                          items={hierarchyNarrowerTerms}
-                          expanded={hierarchyExpanded.narrower}
-                          onToggle={() => toggleHierarchySection('narrower')}
-                          onItemClick={(item) => handleConceptClick(item.uri, 'hierarchy')}
-                          emptyLabel="No narrower terms are available for this concept."
-                      />
                     </div>
                   </CardContent>
                 </Card>
