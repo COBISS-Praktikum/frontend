@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { flushSync } from 'react-dom';
 import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
 import ForceGraph2D, { type ForceGraphMethods, type NodeObject } from 'react-force-graph-2d';
@@ -9,11 +8,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator.tsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.tsx';
 import { Footer } from '@/components/layout/Footer.tsx';
+import { stripLanguageTag } from '@/lib/utils.ts';
 import './GraphPage.css';
 
 interface ConceptNode {
   uri: string;
-  prefLabel: string;
+  prefLabel?: string | null;
+  prefLabelSl?: string | null;
+  prefLabelEn?: string | null;
 }
 
 interface Concept extends ConceptNode {
@@ -96,7 +98,7 @@ function HierarchySection({
                       >
                         <span className="hierarchy-node-mark" aria-hidden="true" />
                         <div className="hierarchy-node-content">
-                          <h5>{item.prefLabel}</h5>
+                          <h5>{stripLanguageTag(item.prefLabel)}</h5>
                           <p>{item.uri}</p>
                         </div>
                       </button>
@@ -115,14 +117,20 @@ const GET_CONCEPT = gql`
     concept(uri: $uri) {
       uri
       prefLabel
+      prefLabelSl
+      prefLabelEn
       definition
       broader {
         uri
         prefLabel
+        prefLabelSl
+        prefLabelEn
       }
       narrower {
         uri
         prefLabel
+        prefLabelSl
+        prefLabelEn
       }
     }
   }
@@ -132,9 +140,8 @@ function GraphPage() {
   const { uri } = useParams<{ uri: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const graphViewportRef = useRef<HTMLDivElement | null>(null);
   const fgRef = useRef<ForceGraphMethods<GraphNode, GraphLink> | undefined>(undefined);
-  const startTimeRef = useRef<number | null>(null);
+  const [graphViewportElement, setGraphViewportElement] = useState<HTMLDivElement | null>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [hierarchyExpanded, setHierarchyExpanded] = useState({
     broader: true,
@@ -144,83 +151,36 @@ function GraphPage() {
     variables: { uri: decodeURIComponent(uri || '') },
   });
 
-  // Track when we started loading so we can log timings
+  // Measure the graph container whenever it mounts or resizes.
+  // This fixes first render when the viewport appears after loading.
   useEffect(() => {
-    if (loading) {
-      startTimeRef.current = performance.now();
-    }
-  }, [loading]);
-
-  // Update viewport size - defined at component level (not inside useEffect)
-  const updateViewportSize = useCallback(() => {
-    if (!graphViewportRef.current) {
-      console.debug('[GraphPage] viewport ref not ready');
+    if (!graphViewportElement) {
       return;
     }
 
-    // Try multiple ways to get size in case one fails
-    const width = graphViewportRef.current.clientWidth || graphViewportRef.current.getBoundingClientRect().width;
-    const height = graphViewportRef.current.clientHeight || graphViewportRef.current.getBoundingClientRect().height;
+    const measure = () => {
+      const { width, height } = graphViewportElement.getBoundingClientRect();
+      const nextWidth = Math.max(0, Math.floor(width));
+      const nextHeight = Math.max(0, Math.floor(height));
 
-    console.debug(`[GraphPage] viewport measurements - clientWidth=${graphViewportRef.current.clientWidth} clientHeight=${graphViewportRef.current.clientHeight}`);
+      setViewportSize((current) => {
+        if (current.width === nextWidth && current.height === nextHeight) {
+          return current;
+        }
 
-    if (width > 0 && height > 0) {
-      console.debug(`[GraphPage] ✓ setting viewport size to ${width}x${height}`);
-      // Force synchronous state update to immediately commit to DOM
-      flushSync(() => {
-        setViewportSize({
-          width: Math.max(0, Math.floor(width)),
-          height: Math.max(0, Math.floor(height)),
-        });
+        return { width: nextWidth, height: nextHeight };
       });
-    } else {
-      console.debug(`[GraphPage] ✗ viewport size is 0 (${width}x${height}), not updating`);
-    }
-  }, []);
-
-  useEffect(() => {
-    console.debug('[GraphPage] useEffect mounting - scheduling measurements');
-
-    // Initial measurement using requestAnimationFrame to ensure DOM is painted first
-    const rafId = requestAnimationFrame(() => {
-      console.debug('[GraphPage] requestAnimationFrame callback');
-      updateViewportSize();
-    });
-
-    // Backup: also try with setTimeout in case RAF isn't called
-    const attempt1 = setTimeout(() => {
-      console.debug('[GraphPage] setTimeout attempt 1 (0ms)');
-      updateViewportSize();
-    }, 0);
-
-    const attempt2 = setTimeout(() => {
-      console.debug('[GraphPage] setTimeout attempt 2 (50ms)');
-      updateViewportSize();
-    }, 50);
-
-    // ResizeObserver for dynamic size changes
-    const resizeObserver = new ResizeObserver(() => {
-      console.debug('[GraphPage] ResizeObserver fired');
-      updateViewportSize();
-    });
-    if (graphViewportRef.current) {
-      resizeObserver.observe(graphViewportRef.current);
-    }
-
-    const handleResize = () => {
-      console.debug('[GraphPage] window resize event');
-      updateViewportSize();
     };
-    window.addEventListener('resize', handleResize);
+
+    const rafId = requestAnimationFrame(measure);
+    const resizeObserver = new ResizeObserver(measure);
+    resizeObserver.observe(graphViewportElement);
 
     return () => {
       cancelAnimationFrame(rafId);
-      clearTimeout(attempt1);
-      clearTimeout(attempt2);
       resizeObserver.disconnect();
-      window.removeEventListener('resize', handleResize);
     };
-  }, [updateViewportSize]);
+  }, [graphViewportElement]);
 
   const graphData = useMemo<GraphData>(() => {
     if (!data || !data.concept) {
@@ -232,13 +192,13 @@ function GraphPage() {
     const links: GraphLink[] = [];
 
     // Add the main concept
-    nodeMap.set(concept.uri, { id: concept.uri, name: concept.prefLabel, uri: concept.uri });
+    nodeMap.set(concept.uri, { id: concept.uri, name: stripLanguageTag(concept.prefLabel), uri: concept.uri });
 
     // Add broader concepts
     if (concept.broader) {
       concept.broader.forEach((b: ConceptNode) => {
         if (!nodeMap.has(b.uri)) {
-          nodeMap.set(b.uri, { id: b.uri, name: b.prefLabel, uri: b.uri });
+          nodeMap.set(b.uri, { id: b.uri, name: stripLanguageTag(b.prefLabel), uri: b.uri });
         }
         links.push({ source: concept.uri, target: b.uri });
       });
@@ -248,7 +208,7 @@ function GraphPage() {
     if (concept.narrower) {
       concept.narrower.forEach((n: ConceptNode) => {
         if (!nodeMap.has(n.uri)) {
-          nodeMap.set(n.uri, { id: n.uri, name: n.prefLabel, uri: n.uri });
+          nodeMap.set(n.uri, { id: n.uri, name: stripLanguageTag(n.prefLabel), uri: n.uri });
         }
         links.push({ source: concept.uri, target: n.uri });
       });
@@ -265,30 +225,6 @@ function GraphPage() {
 
     return { nodes, links };
   }, [data]);
-
-  // Log approximate time between request start and data arrival
-  useEffect(() => {
-    if (data && startTimeRef.current !== null) {
-      const ms = Math.round(performance.now() - startTimeRef.current);
-      console.debug(`[GraphPage] data received after ${ms} ms`);
-    }
-  }, [data]);
-
-  // Log basic graph stats when graph data is produced
-  useEffect(() => {
-    console.debug(`[GraphPage] graph data updated: nodes=${graphData.nodes.length} links=${graphData.links.length}`);
-  }, [graphData]);
-
-  // Log when viewport size changes
-  useEffect(() => {
-    console.debug(`[GraphPage] viewport size state: ${viewportSize.width}x${viewportSize.height}`);
-  }, [viewportSize]);
-
-  // NOTE: The pause/resume effect that previously lived here was removed.
-  // It was resetting the engine's alpha to 1.0 on every resume, which restarted
-  // the cooldown timer and caused the first-load hang (~12s). The aggressive
-  // engine props below (alphaDecay, alphaMin, cooldownTicks, cooldownTime) plus
-  // pre-positioned nodes are sufficient to converge quickly without it.
 
   const concept = data?.concept;
   const hierarchyBroaderTerms = useMemo(() => {
@@ -357,7 +293,7 @@ function GraphPage() {
               <div className="graph-toolbar">
                 <div className="graph-title-block">
                   <Badge variant="secondary">Selected term</Badge>
-                  <h2 className="graph-title">{concept.prefLabel}</h2>
+                  <h2 className="graph-title">{stripLanguageTag(concept.prefLabel)}</h2>
                   <p className="graph-subtitle">URI: {concept.uri}</p>
                 </div>
 
@@ -382,7 +318,7 @@ function GraphPage() {
                     <div className="graph-stage">
                       <div className="graph-overlay">
                         <Badge variant="outline">Selected term</Badge>
-                        <h3>{concept.prefLabel}</h3>
+                        <h3>{stripLanguageTag(concept.prefLabel)}</h3>
                         <p className="graph-overlay-uri">{concept.uri}</p>
                         <p className="graph-overlay-definition">
                           {concept.definition ?? 'No definition is available for this concept yet.'}
@@ -406,7 +342,7 @@ function GraphPage() {
                         </div>
                       </div>
 
-                      <div ref={graphViewportRef} className="graph-viewport">
+                      <div ref={setGraphViewportElement} className="graph-viewport">
                         {viewportSize.width > 0 && viewportSize.height > 0 ? (
                             <ForceGraph2D
                                 ref={fgRef}
@@ -467,16 +403,6 @@ function GraphPage() {
                                    ctx.arc(x, y, 6, 0, 2 * Math.PI);
                                    ctx.fill();
                                  }}
-                                   onEngineStop={() => {
-                                     // Guard against the initial empty-graph run firing this
-                                     if (graphData.nodes.length === 0) return;
-
-                                     if (startTimeRef.current !== null) {
-                                       const ms = Math.round(performance.now() - startTimeRef.current);
-                                       console.debug(`[GraphPage] engine stopped after ${ms} ms`);
-                                       startTimeRef.current = null;
-                                     }
-                                   }}
                             />
                         ) : null}
                       </div>
@@ -499,12 +425,23 @@ function GraphPage() {
 
                   <CardContent className="graph-hierarchy-content">
                     <div className="hierarchy-view">
+                      <HierarchySection
+                          relation="broader"
+                          title="Broader terms"
+                          description="More general concepts that sit above the selected term."
+                          items={hierarchyBroaderTerms}
+                          expanded={hierarchyExpanded.broader}
+                          onToggle={() => toggleHierarchySection('broader')}
+                          onItemClick={(item) => handleConceptClick(item.uri, 'hierarchy')}
+                          emptyLabel="No broader terms are available for this concept."
+                      />
+
                       <div className="hierarchy-root-wrap">
                         <div className="hierarchy-root-card">
                           <Badge variant="secondary">Selected term</Badge>
                           <div className="hierarchy-root-title-row">
                             <span className="hierarchy-node-mark hierarchy-node-mark--root" aria-hidden="true" />
-                            <h3>{concept.prefLabel}</h3>
+                            <h3>{stripLanguageTag(concept.prefLabel)}</h3>
                           </div>
                           <p className="hierarchy-root-uri">{concept.uri}</p>
                           <p className="hierarchy-root-definition">
@@ -523,29 +460,16 @@ function GraphPage() {
                         </div>
                       </div>
 
-                      <div className="hierarchy-branches">
-                        <HierarchySection
-                            relation="narrower"
-                            title="Narrower terms"
-                            description="More specific concepts that branch out from the selected term."
-                            items={hierarchyNarrowerTerms}
-                            expanded={hierarchyExpanded.narrower}
-                            onToggle={() => toggleHierarchySection('narrower')}
-                            onItemClick={(item) => handleConceptClick(item.uri, 'hierarchy')}
-                            emptyLabel="No narrower terms are available for this concept."
-                        />
-
-                        <HierarchySection
-                            relation="broader"
-                            title="Broader terms"
-                            description="More general concepts that sit above the selected term."
-                            items={hierarchyBroaderTerms}
-                            expanded={hierarchyExpanded.broader}
-                            onToggle={() => toggleHierarchySection('broader')}
-                            onItemClick={(item) => handleConceptClick(item.uri, 'hierarchy')}
-                            emptyLabel="No broader terms are available for this concept."
-                        />
-                      </div>
+                      <HierarchySection
+                          relation="narrower"
+                          title="Narrower terms"
+                          description="More specific concepts that branch out from the selected term."
+                          items={hierarchyNarrowerTerms}
+                          expanded={hierarchyExpanded.narrower}
+                          onToggle={() => toggleHierarchySection('narrower')}
+                          onItemClick={(item) => handleConceptClick(item.uri, 'hierarchy')}
+                          emptyLabel="No narrower terms are available for this concept."
+                      />
                     </div>
                   </CardContent>
                 </Card>
