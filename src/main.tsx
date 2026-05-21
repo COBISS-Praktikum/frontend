@@ -7,12 +7,15 @@ import App from './App.tsx'
 import { ApolloProvider } from "@apollo/client/react";
 import client from './config/apollo-client.ts';
 import { BrowserRouter as Router } from 'react-router-dom';
+import { GatewayProtection } from './GatewayProtection.tsx';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ApolloProvider client={client}>
       <Router>
-        <App />
+        <GatewayProtection>
+          <App />
+        </ GatewayProtection>
       </Router>
     </ApolloProvider>
   </StrictMode>,
