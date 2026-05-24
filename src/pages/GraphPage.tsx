@@ -10,7 +10,6 @@ import { Separator } from '@/components/ui/separator.tsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.tsx';
 import { Footer } from '@/components/layout/Footer.tsx';
 import { stripLanguageTag } from '@/lib/utils.ts';
-import { useRateLimit } from '@/context/RateLimitContext';
 import '@xyflow/react/dist/style.css';
 import './GraphPage.css';
 
@@ -51,9 +50,12 @@ interface GraphData {
   links: GraphLink[];
 }
 
+const EMPTY_CONCEPT_NODES: ConceptNode[] = [];
+
 
 type HierarchyNodeKind = 'root' | 'broader' | 'shared' | 'narrower';
 type HierarchyRelationKind = 'broader' | 'narrower' | 'related';
+type HierarchyGroupKind = HierarchyRelationKind;
 
 interface HierarchyNodeData extends Record<string, unknown> {
   label: string;
@@ -266,8 +268,8 @@ function buildHierarchyNodes(
     nodes.push(node);
 
     const edgeRelation = relationList.length === 1 ? relationList[0] : 'shared';
-    const source = kind === 'broader' ? node.id : `root:${concept.uri}`;
-    const target = kind === 'broader' ? `root:${concept.uri}` : node.id;
+    const source = `root:${concept.uri}`;
+    const target = node.id;
 
     edges.push({
       id: `${source}->${target}`,
@@ -285,6 +287,19 @@ function buildHierarchyNodes(
 
 function getConceptLabel(item: ConceptNode) {
   return stripLanguageTag(item.prefLabel ?? item.prefLabelEn ?? item.prefLabelSl ?? item.uri) || item.uri;
+}
+
+function dedupeConceptNodes(items?: ConceptNode[]) {
+  const seen = new Set<string>();
+
+  return (items ?? []).filter((item) => {
+    if (seen.has(item.uri)) {
+      return false;
+    }
+
+    seen.add(item.uri);
+    return true;
+  });
 }
 
 const GET_CONCEPT = gql`
@@ -327,17 +342,14 @@ function GraphPage() {
   const hierarchyFlowInstanceRef = useRef<{ fitView: (options?: { padding?: number }) => void } | null>(null);
   const [hierarchyViewportElement, setHierarchyViewportElement] = useState<HTMLDivElement | null>(null);
   const [hierarchyViewportSize, setHierarchyViewportSize] = useState({ width: 0, height: 0 });
-  const { recordRequest } = useRateLimit();
+  const [expandedGroups, setExpandedGroups] = useState<Record<HierarchyGroupKind, boolean>>({
+    broader: true,
+    related: true,
+    narrower: false,
+  });
   const { loading, error, data } = useQuery<GetConceptResponse>(GET_CONCEPT, {
     variables: { uri: decodeURIComponent(uri || '') },
   });
-
-  // Record the request when data loads
-  useEffect(() => {
-    if (data?.concept) {
-      recordRequest();
-    }
-  }, [data?.concept, recordRequest]);
 
   // Measure the graph container whenever it mounts or resizes.
   // This fixes first render when the viewport appears after loading.
@@ -475,6 +487,13 @@ function GraphPage() {
   const narrowerCount = narrowerTerms.length;
   const activeTab = searchParams.get('tab') === 'hierarchy' ? 'hierarchy' : 'graph';
 
+  const toggleHierarchyGroup = useCallback((kind: HierarchyGroupKind) => {
+    setExpandedGroups((current) => ({
+      ...current,
+      [kind]: !current[kind],
+    }));
+  }, []);
+
   const buildConceptUrl = useCallback(
     (targetUri: string, tab: 'graph' | 'hierarchy') => `/frontend/graph/${encodeURIComponent(targetUri)}?tab=${tab}`,
     [],
@@ -503,8 +522,20 @@ function GraphPage() {
       };
     }
 
-    return buildHierarchyNodes(concept, broaderTerms, narrowerTerms, concept.related ?? [], handleHierarchyConceptClick);
-  }, [concept, broaderTerms, narrowerTerms, handleHierarchyConceptClick]);
+    const visibleBroaderTerms = expandedGroups.broader ? broaderTerms : EMPTY_CONCEPT_NODES;
+    const visibleRelatedTerms = expandedGroups.related ? dedupeConceptNodes(concept.related) : EMPTY_CONCEPT_NODES;
+    const visibleNarrowerTerms = expandedGroups.narrower ? narrowerTerms : EMPTY_CONCEPT_NODES;
+
+    return buildHierarchyNodes(concept, visibleBroaderTerms, visibleNarrowerTerms, visibleRelatedTerms, handleHierarchyConceptClick);
+  }, [
+    concept,
+    expandedGroups.broader,
+    expandedGroups.narrower,
+    expandedGroups.related,
+    broaderTerms,
+    narrowerTerms,
+    handleHierarchyConceptClick,
+  ]);
 
   useEffect(() => {
     if (activeTab !== 'hierarchy') {
@@ -666,6 +697,21 @@ function GraphPage() {
 
                   <CardContent className="graph-hierarchy-content">
                     <div className="hierarchy-flow-shell">
+                      <div className="hierarchy-flow-legend" aria-label="Hierarchy relation legend">
+                        {(['broader', 'related', 'narrower'] as const).map((kind) => (
+                          <button
+                            key={kind}
+                            type="button"
+                            className={`hierarchy-flow-legend-item hierarchy-flow-legend-item--button hierarchy-flow-legend-item--${kind} ${expandedGroups[kind] ? 'is-active' : 'is-collapsed'}`}
+                            onClick={() => toggleHierarchyGroup(kind)}
+                            aria-pressed={expandedGroups[kind]}
+                            title={expandedGroups[kind] ? `Hide ${kind} terms` : `Show ${kind} terms`}
+                          >
+                            {kind === 'related' ? 'Shared / related' : kind[0].toUpperCase() + kind.slice(1)}
+                          </button>
+                        ))}
+                      </div>
+
                       <div ref={setHierarchyViewportElement} className="hierarchy-flow" aria-label="Concept hierarchy tree">
                         {hierarchyViewportSize.width > 0 && hierarchyViewportSize.height > 0 && hierarchyFlow.nodes.length > 0 ? (
                           <ReactFlow<HierarchyFlowNode, HierarchyFlowEdge>
@@ -706,7 +752,11 @@ function GraphPage() {
                             proOptions={{ hideAttribution: true }}
                           />
                         ) : (
-                          <div className="hierarchy-empty-state">Preparing hierarchy view…</div>
+                          <div className="hierarchy-empty-state">
+                            {expandedGroups.broader || expandedGroups.related || expandedGroups.narrower
+                              ? 'Preparing hierarchy view…'
+                              : 'No groups are expanded. Use the buttons above to show broader, related, or narrower terms.'}
+                          </div>
                         )}
                       </div>
                     </div>
