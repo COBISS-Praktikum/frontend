@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator.tsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.tsx';
 import { Footer } from '@/components/layout/Footer.tsx';
 import { stripLanguageTag } from '@/lib/utils.ts';
+import { useRateLimit } from '@/context/RateLimitContext';
 import '@xyflow/react/dist/style.css';
 import './GraphPage.css';
 
@@ -326,9 +327,17 @@ function GraphPage() {
   const hierarchyFlowInstanceRef = useRef<{ fitView: (options?: { padding?: number }) => void } | null>(null);
   const [hierarchyViewportElement, setHierarchyViewportElement] = useState<HTMLDivElement | null>(null);
   const [hierarchyViewportSize, setHierarchyViewportSize] = useState({ width: 0, height: 0 });
+  const { recordRequest } = useRateLimit();
   const { loading, error, data } = useQuery<GetConceptResponse>(GET_CONCEPT, {
     variables: { uri: decodeURIComponent(uri || '') },
   });
+
+  // Record the request when data loads
+  useEffect(() => {
+    if (data?.concept) {
+      recordRequest();
+    }
+  }, [data?.concept, recordRequest]);
 
   // Measure the graph container whenever it mounts or resizes.
   // This fixes first render when the viewport appears after loading.
