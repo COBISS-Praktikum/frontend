@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Routes, Route, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import SearchPage from './pages/SearchPage.tsx';
 import GraphPage from './pages/GraphPage.tsx';
 import { Header } from './components/layout/Header.tsx';
@@ -17,74 +18,89 @@ function App() {
 
         {/* Main Content */}
         <main className={`app-main ${isGraphRoute ? 'app-main--graph' : ''}`}>
-          <Routes>
-            <Route path="/frontend/" element={<SearchPage />} />
-            <Route path="/frontend/graph/:uri" element={<GraphPage />} />
-          </Routes>
+          <AnimatePresence mode="wait">
+            <Routes location={location} key={location.pathname}>
+              <Route path="/frontend/" element={<SearchPage />} />
+              <Route path="/frontend/graph/:uri" element={<GraphPage />} />
+            </Routes>
+          </AnimatePresence>
         </main>
 
         {!isGraphRoute && (
-          <section id="features" className="features-section">
-            <div className="features-container">
-              <h3 className="section-title">{t('featuresTitle')}</h3>
-              <div className="features-grid">
-                <div className="feature-card">
-                  <div className="feature-icon">🔍</div>
-                  <h4>{t('feature1Title')}</h4>
-                  <p>
-                    {t('feature1Desc')}
-                  </p>
-                </div>
-
-                <div className="feature-card">
-                  <div className="feature-icon">📊</div>
-                  <h4>{t('feature2Title')}</h4>
-                  <p>
-                    {t('feature2Desc')}
-                  </p>
-                </div>
-
-                <div className="feature-card">
-                  <div className="feature-icon">🌳</div>
-                  <h4>{t('feature3Title')}</h4>
-                  <p>
-                    {t('feature3Desc')}
-                  </p>
-                </div>
-
-                <div className="feature-card">
-                  <div className="feature-icon">🌐</div>
-                  <h4>{t('feature4Title')}</h4>
-                  <p>
-                    {t('feature4Desc')}
-                  </p>
-                </div>
+          <section id="features" className="features-section py-20 bg-background">
+            <div className="features-container max-w-6xl mx-auto px-4">
+              <motion.h3
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                className="section-title text-3xl font-bold text-center mb-12 text-foreground"
+              >
+                {t('featuresTitle')}
+              </motion.h3>
+              <div className="features-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[
+                  { icon: '🔍', title: 'feature1Title', desc: 'feature1Desc', delay: 0.1 },
+                  { icon: '📊', title: 'feature2Title', desc: 'feature2Desc', delay: 0.2 },
+                  { icon: '🌳', title: 'feature3Title', desc: 'feature3Desc', delay: 0.3 },
+                  { icon: '🌐', title: 'feature4Title', desc: 'feature4Desc', delay: 0.4 }
+                ].map((feature, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: feature.delay }}
+                    className="feature-card bg-card border border-border shadow-sm hover:shadow-md transition-shadow rounded-2xl p-6 text-center flex flex-col items-center"
+                  >
+                    <div className="feature-icon text-4xl mb-4 bg-muted w-16 h-16 rounded-full flex items-center justify-center">{feature.icon}</div>
+                    <h4 className="text-xl font-semibold mb-2">{t(feature.title)}</h4>
+                    <p className="text-muted-foreground text-sm leading-relaxed">
+                      {t(feature.desc)}
+                    </p>
+                  </motion.div>
+                ))}
               </div>
 
-              <div id="about" className="description-box">
-                <h4>{t('aboutTitle')}</h4>
-                <p>
+              <motion.div
+                id="about"
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: 0.2, duration: 0.6 }}
+                className="description-box mt-20 bg-card border border-border shadow-sm rounded-2xl p-8 md:p-12"
+              >
+                <h4 className="text-2xl font-bold mb-6 text-primary">{t('aboutTitle')}</h4>
+                <p className="text-muted-foreground mb-8 text-lg leading-relaxed">
                   {t('aboutDesc')}
                 </p>
-                <h5 className="description-subheading">{t('designedFor')}</h5>
-                <ul className="description-list">
-                  <li>{t('designedFor1')}</li>
-                  <li>{t('designedFor2')}</li>
-                  <li>{t('designedFor3')}</li>
-                  <li>{t('designedFor4')}</li>
-                </ul>
-                <h5 className="description-subheading">{t('whatYouCan')}</h5>
-                <ul className="description-list">
-                  <li>{t('whatYouCan1')}</li>
-                  <li>{t('whatYouCan2')}</li>
-                  <li>{t('whatYouCan3')}</li>
-                  <li>{t('whatYouCan4')}</li>
-                  <li>{t('whatYouCan5')}</li>
-                </ul>
-                <p className="description-cta">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div>
+                    <h5 className="description-subheading font-semibold text-lg mb-4">{t('designedFor')}</h5>
+                    <ul className="description-list space-y-2">
+                      {[1, 2, 3, 4].map((num) => (
+                        <li key={num} className="flex items-start">
+                          <span className="text-primary mr-2">•</span>
+                          <span className="text-muted-foreground">{t(`designedFor${num}`)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <h5 className="description-subheading font-semibold text-lg mb-4">{t('whatYouCan')}</h5>
+                    <ul className="description-list space-y-2">
+                      {[1, 2, 3, 4, 5].map((num) => (
+                        <li key={num} className="flex items-start">
+                          <span className="text-primary mr-2">•</span>
+                          <span className="text-muted-foreground">{t(`whatYouCan${num}`)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+                <p className="description-cta mt-8 pt-8 border-t border-border text-center font-medium text-foreground">
                   {t('ctaText')}
                 </p>
-              </div>
+              </motion.div>
             </div>
           </section>
         )}
