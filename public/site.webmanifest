@@ -1,0 +1,18 @@
+{
+  "name": "SGC Navigator",
+  "short_name": "SGC Navigator",
+  "description": "Explore the Slovenian COBISS subject heading system with interactive graph and hierarchy views.",
+  "start_url": "/frontend/",
+  "scope": "/frontend/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
+

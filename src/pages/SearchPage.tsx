@@ -1,12 +1,13 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { gql } from "@apollo/client";
 import { useLazyQuery } from "@apollo/client/react";
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Command, Network, GitMerge, Languages, Zap, Database } from 'lucide-react';
+import { Search, Command, Network, GitMerge, Languages, Database } from 'lucide-react';
 import { Input } from '@/components/ui/input.tsx';
 import { Skeleton } from '@/components/ui/skeleton.tsx';
+import { SEO } from '@/components/layout/SEO.tsx';
 import { stripLanguageTag, cn } from '@/lib/utils.ts';
 import { useRateLimit } from '@/context/RateLimitContext';
 const BackgroundNodes = () => (
@@ -35,12 +36,6 @@ const SEARCH_CONCEPTS = gql`
     }
   }
 `;
-const TRENDING_CONCEPTS = [
-  { label: 'Umjetna inteligencija', query: 'umetna inteligenca' },
-  { label: 'Blockchain', query: 'blockchain' },
-  { label: 'Kvantno računalništvo', query: 'kvantno' },
-  { label: 'Podnebne spremembe', query: 'podnebje' }
-];
 function SearchPage() {
   const { t, i18n } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
@@ -52,6 +47,16 @@ function SearchPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const selectedLanguage = i18n.resolvedLanguage ?? i18n.language ?? 'en';
   const searchLanguage = selectedLanguage.toLowerCase().startsWith('sl') ? 'sl' : 'en';
+  const canonicalUrl = typeof window !== 'undefined' ? `${window.location.origin}/frontend/` : undefined;
+  const trendingConcepts = useMemo(
+    () => [
+      { label: t('trendingConcept1Label', 'Artificial Intelligence'), query: 'umetna inteligenca' },
+      { label: t('trendingConcept2Label', 'Blockchain'), query: 'blockchain' },
+      { label: t('trendingConcept3Label', 'Quantum Computing'), query: 'kvantno' },
+      { label: t('trendingConcept4Label', 'Climate Change'), query: 'podnebje' },
+    ],
+    [t],
+  );
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -117,6 +122,12 @@ function SearchPage() {
   };
   return (
     <div className="relative min-h-screen w-full bg-slate-950 text-slate-50 overflow-hidden font-sans">
+      <SEO
+        title={t('seoSearchTitle', 'SGC Navigator | Search COBISS General Subject Headings')}
+        description={t('seoSearchDescription', 'Search and explore COBISS subject headings through an interactive semantic graph and hierarchy.')}
+        keywords={t('seoSearchKeywords', 'SGC Navigator, COBISS, subject headings, semantic search, thesaurus, graph')}
+        canonicalUrl={canonicalUrl}
+      />
       <BackgroundNodes />
       <div className="relative z-10 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20 pb-32 flex flex-col items-center">
         {/* Hero Header */}
@@ -126,11 +137,7 @@ function SearchPage() {
           transition={{ duration: 0.8, ease: "easeOut" }}
           className="text-center w-full max-w-3xl mb-12"
         >
-          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-teal-500/10 border border-teal-500/20 text-teal-400 text-sm font-medium mb-6">
-            <Zap className="w-4 h-4" />
-            <span>SGC Navigator 2.0</span>
-          </div>
-          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-6 text-transparent bg-clip-text bg-gradient-to-br from-white via-slate-200 to-slate-500">
+          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-6 text-transparent bg-clip-text bg-linear-to-br from-white via-slate-200 to-slate-500">
             {t('heroTitle', 'Explore the Semantic Web')}
           </h1>
           <p className="text-lg md:text-xl text-slate-400 font-light max-w-2xl mx-auto leading-relaxed">
@@ -185,9 +192,9 @@ function SearchPage() {
                       <Skeleton className="h-5 w-1/2 bg-slate-800" />
                     </div>
                   )}
-                  {error && <p className="p-4 text-red-400/90 text-sm">Error: {error.message}</p>}
+                  {error && <p className="p-4 text-red-400/90 text-sm">{t('searchErrorPrefix', 'Error:')} {error.message}</p>}
                   {suggestions.length > 0 && (
-                    <ul className="max-h-[350px] overflow-y-auto w-full py-2 custom-scrollbar">
+                    <ul className="max-h-87.5 overflow-y-auto w-full py-2 custom-scrollbar">
                       {suggestions.map((concept, index) => (
                         <motion.li
                           key={concept.uri}
@@ -219,7 +226,7 @@ function SearchPage() {
            className="flex flex-wrap items-center justify-center gap-2 max-w-3xl mb-16"
          >
            <span className="text-sm text-slate-500 mr-2">{t('trendingLabel', 'Trending:')}</span>
-          {TRENDING_CONCEPTS.map((item, i) => (
+           {trendingConcepts.map((item, i) => (
             <button
               key={i}
               onClick={() => executeSearch(item.query)}
@@ -313,7 +320,7 @@ function SearchPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.9 }}
-            className="md:col-span-3 group rounded-3xl bg-gradient-to-r from-slate-900/80 to-[#004b87]/10 border border-white/10 p-8 hover:border-white/30 transition-all duration-500 flex flex-col md:flex-row items-center justify-between"
+            className="md:col-span-3 group rounded-3xl bg-linear-to-r from-slate-900/80 to-[#004b87]/10 border border-white/10 p-8 hover:border-white/30 transition-all duration-500 flex flex-col md:flex-row items-center justify-between"
           >
             <div className="mb-6 md:mb-0 max-w-xl">
                <div className="w-12 h-12 rounded-xl bg-indigo-500/20 flex items-center justify-center mb-4 border border-indigo-500/30">
@@ -325,13 +332,13 @@ function SearchPage() {
             {/* Interactive Pill Mock */}
             <div className="relative w-64 h-16 bg-slate-800/80 rounded-full border border-slate-700 flex items-center justify-between px-6 overflow-hidden shadow-inner group-hover:border-indigo-500/50 transition-colors">
               <motion.div 
-                className="absolute inset-y-0 left-0 w-full bg-gradient-to-r from-transparent via-indigo-500/10 to-transparent"
+                className="absolute inset-y-0 left-0 w-full bg-linear-to-r from-transparent via-indigo-500/10 to-transparent"
                 animate={{ x: ['-100%', '100%'] }}
                 transition={{ repeat: Infinity, duration: 3, ease: 'linear' }}
               />
-              <span className="text-slate-300 font-medium z-10">Umetnost</span>
+               <span className="text-slate-300 font-medium z-10">{t('searchExampleSl', 'Umetnost')}</span>
               <Network className="w-4 h-4 text-slate-500 z-10" />
-              <span className="text-indigo-300 font-medium z-10">Art</span>
+               <span className="text-indigo-300 font-medium z-10">{t('searchExampleEn', 'Art')}</span>
             </div>
           </motion.div>
         </div>

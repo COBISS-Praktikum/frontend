@@ -13,6 +13,7 @@ import { Separator } from '@/components/ui/separator.tsx';
 import { Skeleton } from '@/components/ui/skeleton.tsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.tsx';
 import { Footer } from '@/components/layout/Footer.tsx';
+import { SEO } from '@/components/layout/SEO.tsx';
 import { stripLanguageTag } from '@/lib/utils.ts';
 import '@xyflow/react/dist/style.css';
 import './GraphPage.css';
@@ -513,6 +514,7 @@ function GraphPage() {
   }, [data, searchLanguage]);
 
   const concept = data?.concept;
+  const canonicalUrl = typeof window !== 'undefined' && uri ? `${window.location.origin}/frontend/graph/${uri}` : undefined;
   const broaderTerms = useMemo(() => {
     const broader = concept?.broader ?? [];
     const seen = new Set<string>();
@@ -543,6 +545,17 @@ function GraphPage() {
 
   const broaderCount = broaderTerms.length;
   const narrowerCount = narrowerTerms.length;
+  const translatedTitle = concept ? getConceptLabel(concept, searchLanguage) : '';
+  const seoTitle = concept
+    ? t('seoGraphTitle', { conceptName: translatedTitle, defaultValue: `${translatedTitle} - SGC Navigator` })
+    : t('seoGraphLoadingTitle', 'Concept details - SGC Navigator');
+  const seoDescription = concept
+    ? t('seoGraphDescription', {
+        conceptName: translatedTitle,
+        defaultValue: `Explore the semantic relationships, broader terms, and narrower concepts for ${translatedTitle} inside the COBISS SGC system.`,
+      })
+    : t('seoGraphLoadingDescription', 'Loading concept details from the COBISS SGC system.');
+  const seoKeywords = t('seoGraphKeywords', 'SGC Navigator, COBISS, concept relationships, broader terms, narrower concepts, semantic graph');
 
   const toggleHierarchyGroup = useCallback((kind: HierarchyGroupKind) => {
     setExpandedGroups((current) => ({
@@ -615,8 +628,9 @@ function GraphPage() {
   if (loading) {
     return (
       <>
-        <div className="graph-page w-full min-h-[calc(100vh-theme(spacing.12))] bg-gradient-to-b from-slate-950 to-slate-900">
-          <section className="graph-shell max-w-[1400px] mx-auto p-4 md:p-6 lg:p-8 flex flex-col gap-6">
+        <SEO title={seoTitle} description={seoDescription} keywords={seoKeywords} canonicalUrl={canonicalUrl} />
+        <div className="graph-page w-full min-h-[calc(100vh-(--spacing(12)))] bg-linear-to-b from-slate-950 to-slate-900">
+          <section className="graph-shell max-w-350 mx-auto p-4 md:p-6 lg:p-8 flex flex-col gap-6">
             <div className="graph-toolbar flex flex-col md:flex-row justify-between items-start md:items-end gap-6 bg-slate-900/80 border border-slate-800 shadow-sm p-6 rounded-2xl">
               <div className="graph-title-block flex flex-col gap-2 w-full max-w-lg">
                 <Skeleton className="h-5 w-24 rounded-full bg-primary/20" />
@@ -630,7 +644,7 @@ function GraphPage() {
                 <Skeleton className="h-6 w-48 mb-2 bg-primary/10" />
                 <Skeleton className="h-4 w-96 bg-slate-800/50" />
               </CardHeader>
-              <CardContent className="h-[650px] p-6 relative flex items-center justify-center bg-slate-900/20">
+               <CardContent className="h-162.5 p-6 relative flex items-center justify-center bg-slate-900/20">
                  <motion.div
                     animate={{ opacity: [0.3, 0.7, 0.3], scale: [0.95, 1.05, 0.95] }}
                     transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
@@ -646,15 +660,28 @@ function GraphPage() {
     );
   }
 
-  if (error) return <p className="p-8 text-destructive">Error: {error.message}</p>;
-  if (!concept) return <p className="p-8">No concept found.</p>;
-
-  const translatedTitle = getConceptLabel(concept, searchLanguage);
+  if (error) {
+    return (
+      <>
+        <SEO title={seoTitle} description={seoDescription} keywords={seoKeywords} canonicalUrl={canonicalUrl} />
+        <p className="p-8 text-destructive">{t('graphErrorPrefix', 'Error:')} {error.message}</p>
+      </>
+    );
+  }
+  if (!concept) {
+    return (
+      <>
+        <SEO title={seoTitle} description={seoDescription} keywords={seoKeywords} canonicalUrl={canonicalUrl} />
+        <p className="p-8">{t('noConceptFound', 'No concept found.')}</p>
+      </>
+    );
+  }
 
   return (
       <>
-        <div className="graph-page w-full min-h-[calc(100vh-theme(spacing.12))] bg-gradient-to-b from-slate-950 to-slate-900">
-          <section className="graph-shell max-w-[1400px] mx-auto p-4 md:p-6 lg:p-8 flex flex-col gap-6">
+        <SEO title={seoTitle} description={seoDescription} keywords={seoKeywords} canonicalUrl={canonicalUrl} />
+        <div className="graph-page w-full min-h-[calc(100vh-(--spacing(12)))] bg-linear-to-b from-slate-950 to-slate-900">
+          <section className="graph-shell max-w-350 mx-auto p-4 md:p-6 lg:p-8 flex flex-col gap-6">
             <Tabs value={activeTab} onValueChange={handleTabChange} className="graph-tabs w-full flex flex-col gap-4">
               <div className="graph-toolbar flex flex-col md:flex-row justify-between items-start md:items-end gap-6 bg-slate-900/80 border border-slate-800 shadow-sm p-6 rounded-2xl">
                 <div className="graph-title-block flex flex-col gap-2">
@@ -680,7 +707,7 @@ function GraphPage() {
                      </div>
                    </CardHeader>
 
-                  <CardContent className="graph-card-content p-0 m-0 w-full h-[650px] relative">
+                       <CardContent className="graph-card-content p-0 m-0 w-full h-162.5 relative">
                     <div className="graph-stage w-full h-full flex flex-row">
                       <div className="graph-overlay absolute top-4 left-4 z-10 w-72 bg-slate-900/60/90 backdrop-blur-md border border-slate-800 shadow-lg p-5 rounded-xl flex flex-col gap-3 pointer-events-none">
 
@@ -707,7 +734,7 @@ function GraphPage() {
                         </div>
                       </div>
 
-                       <div ref={setGraphViewportElement} className="graph-viewport w-full h-full bg-gradient-to-br from-slate-950/80 via-slate-900/60 to-slate-950/70 flex-1 cursor-grab active:cursor-grabbing">
+                        <div ref={setGraphViewportElement} className="graph-viewport w-full h-full bg-linear-to-br from-slate-950/80 via-slate-900/60 to-slate-950/70 flex-1 cursor-grab active:cursor-grabbing">
                          {viewportSize.width > 0 && viewportSize.height > 0 ? (
                              <ForceGraph2D
                                  key={graphKey}
@@ -782,8 +809,7 @@ function GraphPage() {
                                      const rectY = y + textYOffset - bHeight / 2;
 
                                       // Fade text in smoothly based on scale
-                                      const textAlpha = (isSelected || isHovered) ? opacity : Math.min(opacity, (globalScale - 1.2) * 2);
-                                      ctx.globalAlpha = textAlpha;
+                                      ctx.globalAlpha = (isSelected || isHovered) ? opacity : Math.min(opacity, (globalScale - 1.2) * 2);
 
                                       // Dark badge background with premium appearance
                                       ctx.fillStyle = 'rgba(30, 30, 35, 0.92)';
@@ -873,7 +899,7 @@ function GraphPage() {
                      </div>
                    </CardHeader>
 
-                   <CardContent className="graph-hierarchy-content p-0 h-[650px] relative bg-gradient-to-br from-slate-950/80 via-slate-900/60 to-slate-950/70">
+                       <CardContent className="graph-hierarchy-content p-0 h-162.5 relative bg-linear-to-br from-slate-950/80 via-slate-900/60 to-slate-950/70">
                     <div className="hierarchy-flow-shell w-full h-full flex flex-col">
                       <div className="hierarchy-flow-legend absolute top-4 left-4 z-10 flex gap-2" aria-label="Hierarchy relation legend">
                           {(['broader', 'related', 'narrower'] as const).map((kind) => (

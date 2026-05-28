@@ -8,16 +8,19 @@ import client from './config/apollo-client.ts';
 import { BrowserRouter as Router } from 'react-router-dom';
 import { RateLimitProvider } from './context/RateLimitContext.tsx';
 import { CaptchaModal } from './components/CaptchaModal.tsx';
+import { HelmetProvider } from 'react-helmet-async';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ApolloProvider client={client}>
-      <Router>
-        <RateLimitProvider>
-          <App />
-          <CaptchaModal />
-        </RateLimitProvider>
-      </Router>
-    </ApolloProvider>
+    <HelmetProvider>
+      <ApolloProvider client={client}>
+        <Router>
+          <RateLimitProvider>
+            <App />
+            <CaptchaModal />
+          </RateLimitProvider>
+        </Router>
+      </ApolloProvider>
+    </HelmetProvider>
   </StrictMode>,
 )
