@@ -14,8 +14,7 @@ function getVerificationUrl(): string {
 
   if (!apiUrl) {
     console.error('VITE_API_URL environment variable not set.');
-    return '/api/auth/verify-gateway';
-  }
+    return '/api/auth/verify-gateway'; }
 
   const baseUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
   return `${baseUrl}/api/auth/verify-gateway`;
