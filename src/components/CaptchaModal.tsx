@@ -61,23 +61,28 @@ const setupWidget = async () => {
     hidefooter="true"
   ></altcha-widget>`;
 
-  const widget = container.querySelector('altcha-widget') as any;
+   const widget = container.querySelector('altcha-widget') as HTMLElement & {
+     verifyFunction?: (payload: string) => Promise<boolean>;
+     addEventListener: (event: string, callback: () => void) => void;
+   };
 
-  // verifyFunction must return true/false — widget waits for the promise
-  widget.verifyFunction = async (payload: string) => {
-    try {
-      const response = await fetch(verificationUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payload }),
-      });
-      return response.ok;
-    } catch {
-      return false;
-    }
-  };
+   if (!widget) return;
 
-  widget.addEventListener('verified', (event: Event) => {
+   // verifyFunction must return true/false — widget waits for the promise
+   widget.verifyFunction = async (payload: string) => {
+     try {
+       const response = await fetch(verificationUrl, {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ payload }),
+       });
+       return response.ok;
+     } catch {
+       return false;
+     }
+   };
+
+   widget.addEventListener('verified', () => {
       sessionStorage.setItem('captcha_verified', 'true');
       setIsVerified(true);
       setTimeout(() => setShowCaptchaModal(false), 1500);
