@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 type DefinitionState =
   | { status: 'idle' }
@@ -79,78 +79,60 @@ export function useConceptDefinition({
   prefLabelSl,
   prefLabelEn,
 }: UseConceptDefinitionOptions): DefinitionState {
-  const [state, setState] = useState<DefinitionState>({ status: 'idle' });
-
-  // Primitive stable key — avoids re-firing when Apollo returns new object refs
-  // but the actual string values haven't changed.
+  // Extract stable primitives once so the effect never depends on object identity
   const isSl = lang === 'sl';
   const defStr = definition ?? '';
-  const labelSlStr = cleanLabel(prefLabelSl);
-  const labelEnStr = cleanLabel(prefLabelEn);
+  const labelSl = cleanLabel(prefLabelSl);
+  const labelEn = cleanLabel(prefLabelEn);
 
-  // Track whether the current key has already been resolved so we don't
-  // fire duplicate Groq calls when the parent re-renders with the same data.
-  const resolvedKeyRef = useRef<string>('');
+  const [state, setState] = useState<DefinitionState>({ status: 'idle' });
 
   useEffect(() => {
-    const key = `${lang}||${defStr}||${labelSlStr}||${labelEnStr}`;
+    // Nothing to work with yet — GQL data hasn't arrived
+    if (!labelSl && !labelEn) return;
 
-    if (resolvedKeyRef.current === key) return;
-    resolvedKeyRef.current = key;
-
-    // ── Case 1: Slovenian UI + KB definition exists → no API call needed ──
+    // Case 1: Slovenian UI + KB has a definition → instant, no Groq needed
     if (isSl && defStr) {
       setState({ status: 'ready', text: defStr, source: 'native' });
       return;
     }
 
-    // ── Skip if we have no labels to work with at all (data not loaded yet) ──
-    if (!labelSlStr && !labelEnStr) {
-      return;
-    }
-
+    // Cases 2 & 3 require Groq; set loading immediately so the skeleton shows
     setState({ status: 'loading' });
-    let cancelled = false;
 
-    (async () => {
-      try {
-        const system = buildSystemPrompt(lang);
-        let text: string;
-        let source: 'translated' | 'generated';
+    // Use a local variable instead of a ref — the closure captures it cleanly
+    let active = true;
 
-        if (defStr) {
-          // Case 2: English UI + Slovenian definition exists → translate it
-          const labelHint = labelEnStr || labelSlStr;
-          const prompt =
-            `Concept: "${labelHint}"\n` +
-            `Translate this Slovenian definition into English. ` +
-            `Output the translation only, no preamble:\n\n${defStr}`;
-          text = await callGroq(system, prompt);
-          source = 'translated';
-        } else {
-          // Case 3: No definition in the KB → generate one
-          const label = isSl ? (labelSlStr || labelEnStr) : (labelEnStr || labelSlStr);
-          const prompt = isSl
-            ? `Napiši kratko definicijo za naslednji bibliografski koncept: "${label}"`
-            : `Write a short definition for the following bibliographic concept: "${label}"`;
-          text = await callGroq(system, prompt);
-          source = 'generated';
+    callGroq(
+      buildSystemPrompt(lang),
+      defStr
+        // Case 2: translate the existing Slovenian definition into English
+        ? `Concept: "${labelEn || labelSl}"\nTranslate this Slovenian definition into English. Output the translation only, no preamble:\n\n${defStr}`
+        // Case 3: generate a definition from scratch
+        : isSl
+          ? `Napiši kratko definicijo za naslednji bibliografski koncept: "${labelSl || labelEn}"`
+          : `Write a short definition for the following bibliographic concept: "${labelEn || labelSl}"`,
+    )
+      .then((text) => {
+        if (active) {
+          setState({
+            status: 'ready',
+            text,
+            source: defStr ? 'translated' : 'generated',
+          });
         }
+      })
+      .catch((err) => {
+        console.error('[useConceptDefinition] Groq call failed:', err);
+        if (active) setState({ status: 'idle' });
+      });
 
-        if (!cancelled) setState({ status: 'ready', text, source });
-      } catch (err) {
-        if (!cancelled) {
-          console.error('[useConceptDefinition] Groq call failed:', err);
-          setState({ status: 'idle' });
-        }
-      }
-    })();
-
-    return () => { cancelled = true; };
-
-  // Depend on the primitive strings, not object references
+    return () => {
+      active = false;
+    };
+  // Depend only on primitives — never on object references
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lang, defStr, labelSlStr, labelEnStr]);
+  }, [lang, defStr, labelSl, labelEn]);
 
   return state;
 }
