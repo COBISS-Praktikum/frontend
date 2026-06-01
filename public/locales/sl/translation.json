@@ -46,6 +46,7 @@
   "hierarchyLayoutDesc": "Raziščite izbrani koncept s širšimi izrazi zgoraj, skupnimi/sorodnimi izrazi v sredini in ožjimi izrazi spodaj.",
   "broader": "Širši",
   "narrower": "Ožji",
+  "related": "Sorodni",
   "totalLinks": "Skupno povezav",
   "noDefinition": "Za ta koncept na voljo ni definicije.",
   "hierarchy": "Hierarhija",

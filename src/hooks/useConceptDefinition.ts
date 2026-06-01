@@ -85,20 +85,22 @@ export function useConceptDefinition({
   const labelSl = cleanLabel(prefLabelSl);
   const labelEn = cleanLabel(prefLabelEn);
 
-  const [state, setState] = useState<DefinitionState>({ status: 'idle' });
+  // Derive an initial state synchronously to avoid calling setState inside an effect
+  const initialState: DefinitionState = isSl && defStr
+    ? { status: 'ready', text: defStr, source: 'native' }
+    : { status: 'idle' };
+
+  const [state, setState] = useState<DefinitionState>(initialState);
 
   useEffect(() => {
     // Nothing to work with yet — GQL data hasn't arrived
     if (!labelSl && !labelEn) return;
 
-    // Case 1: Slovenian UI + KB has a definition → instant, no Groq needed
-    if (isSl && defStr) {
-      setState({ status: 'ready', text: defStr, source: 'native' });
-      return;
-    }
+    // If we've already resolved a native definition synchronously, skip effect work
+    if (initialState.status === 'ready') return;
 
-    // Cases 2 & 3 require Groq; set loading immediately so the skeleton shows
-    setState({ status: 'loading' });
+    // Cases 2 & 3 require Groq; set loading asynchronously so we don't call setState synchronously in the effect
+    setTimeout(() => setState({ status: 'loading' }), 0);
 
     // Use a local variable instead of a ref — the closure captures it cleanly
     let active = true;

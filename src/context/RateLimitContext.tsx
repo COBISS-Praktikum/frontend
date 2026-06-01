@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useRef } from 'react';
 
-const RATE_LIMIT_THRESHOLD = 20; // searches per minute
+const RATE_LIMIT_THRESHOLD = 10; // searches per minute
 const TIME_WINDOW = 60000; // 1 minute in ms
 
 interface RateLimitContextType {
