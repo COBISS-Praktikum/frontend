@@ -48,11 +48,17 @@ export function useTheme() {
     const listener = (next: Theme) => setTheme(next);
     listeners.add(listener);
     // Re-sync in case the theme changed between module load and mount.
-    setTheme(currentTheme);
+    if (currentTheme !== theme) {
+      const id = setTimeout(() => setTheme(currentTheme), 0);
+      return () => {
+        clearTimeout(id);
+        listeners.delete(listener);
+      };
+    }
     return () => {
       listeners.delete(listener);
     };
-  }, []);
+  }, [theme]);
 
   const setThemeValue = useCallback((next: Theme) => commitTheme(next), []);
   const toggleTheme = useCallback(
