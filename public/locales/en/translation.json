@@ -81,6 +81,14 @@
   "seoGraphDescription": "Explore the semantic relationships, broader terms, and narrower concepts for {{conceptName}} inside the COBISS SGC system.",
   "seoGraphKeywords": "SGC Navigator, COBISS, concept relationships, broader terms, narrower concepts, semantic graph",
   "graphErrorPrefix": "Error:",
-  "noConceptFound": "No concept found."
+  "noConceptFound": "No concept found.",
+  "clusterBroader": "Broader",
+  "clusterNarrower": "Narrower",
+  "clusterRelated": "Related",
+  "openSelectedTerm": "Open selected term",
+  "openBroaderTerm": "Open Broader term",
+  "openNarrowerTerm": "Open Narrower term",
+  "openRelatedTerm": "Open related term",
+  "preparingView": "Preparing..."
 }
 
