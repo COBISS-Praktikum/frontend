@@ -9,7 +9,7 @@ function App() {
   const location = useLocation();
   const isGraphRoute = location.pathname.startsWith('/frontend/graph/');
   return (
-      <div className="flex flex-col min-h-screen w-full bg-slate-950 text-slate-50 overflow-x-hidden font-sans">
+      <div className="flex flex-col min-h-screen w-full bg-background text-foreground overflow-x-hidden font-sans">
         <Header />
         {/* Main Content */}
         <main className="flex-1 flex flex-col w-full relative z-10">

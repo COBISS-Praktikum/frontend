@@ -7,7 +7,6 @@ import type { TFunction } from 'i18next';
 import * as d3 from 'd3-force';
 import ForceGraph2D, { type ForceGraphMethods, type NodeObject } from 'react-force-graph-2d';
 import { Handle, Position, ReactFlow, type Edge, type Node, type NodeProps } from '@xyflow/react';
-import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge.tsx';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card.tsx';
 import { Separator } from '@/components/ui/separator.tsx';
@@ -70,6 +69,15 @@ interface GraphData {
   nodes: GraphNode[];
   links: GraphLink[];
 }
+
+// ─── COBISS canvas palette ──────────────────────────────────────────────────
+const CANVAS_BG = '#ffffff';
+const C_NAVY = '#004b87';
+const C_NAVY_HOVER = '#0070c0';
+const C_TEAL = '#00a99d';
+const C_CLUSTER_BG = '#eef3f8';
+const C_CLUSTER_TEXT = '#1f3a52';
+const C_NODE_TEXT = '#ffffff';
 
 const EMPTY_CONCEPT_NODES: ConceptNode[] = [];
 
@@ -193,11 +201,7 @@ const HierarchyConceptNode = memo(function HierarchyConceptNode({ data }: NodePr
   const ariaLabel = `${relationLabel} ${label}`;
 
   return (
-      <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          whileHover={{ scale: 1.02 }}
-          transition={{ type: "spring", stiffness: 400, damping: 20 }}
+      <div
           className={`hierarchy-flow-node hierarchy-flow-node--${data.kind}`}
       >
         {data.kind === 'root' ? null : (
@@ -206,21 +210,21 @@ const HierarchyConceptNode = memo(function HierarchyConceptNode({ data }: NodePr
 
         <button
             type="button"
-            className={`hierarchy-flow-node-card hierarchy-flow-node-card--${data.kind} nodrag nopan shadow-sm hover:shadow-md transition-all rounded-xl border border-slate-800 bg-slate-900/60 text-card-foreground group flex items-start gap-3 p-4`}
+            className={`hierarchy-flow-node-card hierarchy-flow-node-card--${data.kind} nodrag nopan shadow-sm hover:shadow-md transition-shadow rounded-sm border border-[#e4ebf2] bg-white text-card-foreground group flex items-start gap-3 p-4`}
             onClick={() => data.onClick(data.uri)}
             onMouseDown={(e) => e.stopPropagation()}
             title={data.uri}
             aria-label={ariaLabel}
         >
-        <span className="hierarchy-flow-node-icon bg-slate-900 border border-slate-800 text-teal-400 rounded-full w-8 h-8 flex items-center justify-center shrink-0 shadow-inner group-hover:border-teal-500/30 group-hover:bg-teal-500/10 transition-colors" aria-hidden="true">
+        <span className="hierarchy-flow-node-icon bg-[#eaf1f8] border border-[#004b87]/15 text-[#004b87] rounded-sm w-8 h-8 flex items-center justify-center shrink-0 group-hover:border-[#00a99d]/30 group-hover:bg-[#e3f5f3] transition-colors" aria-hidden="true">
           {data.kind === 'root' ? '🎯' : data.kind === 'broader' ? '⬆️' : data.kind === 'narrower' ? '⬇️' : '↔️'}
         </span>
           <span className="hierarchy-flow-node-copy text-left flex flex-col pt-1">
-          <span className="hierarchy-flow-node-title font-semibold text-[15px] group-hover:text-teal-400 transition-colors">{label}</span>
+          <span className="hierarchy-flow-node-title font-semibold text-[15px] text-[#14283b] group-hover:text-[#004b87] transition-colors">{label}</span>
             {relationChips.length > 0 ? (
                 <span className="hierarchy-flow-node-relations mt-2 flex flex-wrap gap-1" aria-hidden="true">
               {relationChips.map((relation) => (
-                  <span key={relation} className={`hierarchy-flow-node-relation hierarchy-flow-node-relation--${relation} text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-slate-800/80 text-teal-400 border border-teal-500/20 shadow-sm`}>
+                  <span key={relation} className={`hierarchy-flow-node-relation hierarchy-flow-node-relation--${relation} text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-sm bg-[#eaf1f8] text-[#004b87] border border-[#004b87]/15`}>
                   {relation}
                 </span>
               ))}
@@ -232,7 +236,7 @@ const HierarchyConceptNode = memo(function HierarchyConceptNode({ data }: NodePr
         {data.kind === 'root' ? (
             <Handle type="source" position={Position.Right} className="hierarchy-flow-handle hierarchy-flow-handle--source" />
         ) : null}
-      </motion.div>
+      </div>
   );
 });
 
@@ -423,7 +427,7 @@ function DefinitionOverlay({ concept, translatedTitle, relatedCount, broaderCoun
   const aiBadge =
       defState.status === 'ready' && defState.source !== 'native' ? (
           <span
-              className="inline-flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider text-teal-500/70 mt-1"
+              className="inline-flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider text-[#008c82] mt-1"
               title={defState.source === 'translated' ? 'Translated by AI' : 'Generated by AI'}
               aria-label={defState.source === 'translated' ? 'AI translated definition' : 'AI generated definition'}
           >
@@ -433,15 +437,15 @@ function DefinitionOverlay({ concept, translatedTitle, relatedCount, broaderCoun
       ) : null;
 
   return (
-      <div className="graph-overlay absolute top-4 left-4 z-10 w-72 bg-slate-900/90 backdrop-blur-md border border-slate-800 shadow-lg p-5 rounded-xl flex flex-col gap-3 pointer-events-none">
-        <h3 className="text-lg font-bold leading-tight">{translatedTitle}</h3>
+      <div className="graph-overlay absolute top-4 left-4 z-10 w-72 bg-white/95 backdrop-blur-sm border border-[#dce4ec] shadow-lg shadow-[#004b87]/5 p-5 rounded-sm flex flex-col gap-3 pointer-events-none">
+        <h3 className="text-lg font-bold leading-tight text-[#14283b] font-heading">{translatedTitle}</h3>
 
-        <div className="graph-overlay-definition text-sm text-slate-400 leading-relaxed">
+        <div className="graph-overlay-definition text-sm text-[#586a7b] leading-relaxed">
           {defState.status === 'loading' ? (
               <div className="flex flex-col gap-1.5" aria-label={t('loadingDefinition', 'Loading definition…')}>
-                <Skeleton className="h-3 w-full rounded bg-slate-700/60" />
-                <Skeleton className="h-3 w-5/6 rounded bg-slate-700/60" />
-                <Skeleton className="h-3 w-4/6 rounded bg-slate-700/60" />
+                <Skeleton className="h-3 w-full rounded bg-[#eef2f6]" />
+                <Skeleton className="h-3 w-5/6 rounded bg-[#eef2f6]" />
+                <Skeleton className="h-3 w-4/6 rounded bg-[#eef2f6]" />
               </div>
           ) : definitionText ? (
               <>
@@ -454,21 +458,21 @@ function DefinitionOverlay({ concept, translatedTitle, relatedCount, broaderCoun
         <Separator className="graph-overlay-separator my-2" />
 
         <div className="graph-metrics flex justify-between gap-2" aria-label="Concept relation summary">
-          <div className="graph-metric flex flex-col bg-slate-800/50 p-2 rounded-lg flex-1 text-center">
-            <span className="text-[10px] uppercase font-bold text-slate-400">{t('broader', 'Broader')}</span>
-            <strong className="text-lg text-teal-400">{broaderCount}</strong>
+          <div className="graph-metric flex flex-col bg-[#f3f6fa] border border-[#e4ebf2] p-2 rounded-sm flex-1 text-center">
+            <span className="text-[10px] uppercase font-bold text-[#7c8ba0]">{t('broader', 'Broader')}</span>
+            <strong className="text-lg text-[#004b87]">{broaderCount}</strong>
           </div>
-          <div className="graph-metric flex flex-col bg-slate-800/50 p-2 rounded-lg flex-1 text-center">
-            <span className="text-[10px] uppercase font-bold text-slate-400">{t('narrower', 'Narrower')}</span>
-            <strong className="text-lg text-teal-400">{narrowerCount}</strong>
+          <div className="graph-metric flex flex-col bg-[#f3f6fa] border border-[#e4ebf2] p-2 rounded-sm flex-1 text-center">
+            <span className="text-[10px] uppercase font-bold text-[#7c8ba0]">{t('narrower', 'Narrower')}</span>
+            <strong className="text-lg text-[#004b87]">{narrowerCount}</strong>
           </div>
-          <div className="graph-metric flex flex-col bg-slate-800/50 p-2 rounded-lg flex-1 min-w-[60px] text-center">
-            <span className="text-[10px] uppercase font-bold text-slate-400">{t('related', 'Related')}</span>
-            <strong className="text-lg text-teal-400">{relatedCount}</strong>
+          <div className="graph-metric flex flex-col bg-[#f3f6fa] border border-[#e4ebf2] p-2 rounded-sm flex-1 min-w-[60px] text-center">
+            <span className="text-[10px] uppercase font-bold text-[#7c8ba0]">{t('related', 'Related')}</span>
+            <strong className="text-lg text-[#004b87]">{relatedCount}</strong>
           </div>
-          <div className="graph-metric flex flex-col bg-slate-800/50 p-2 rounded-lg flex-1 text-center">
-            <span className="text-[10px] uppercase font-bold text-slate-400">{t('totalLinks', 'Total Links')}</span>
-            <strong className="text-lg text-teal-400">{broaderCount + relatedCount + narrowerCount}</strong>
+          <div className="graph-metric flex flex-col bg-[#eaf1f8] border border-[#004b87]/15 p-2 rounded-sm flex-1 text-center">
+            <span className="text-[10px] uppercase font-bold text-[#7c8ba0]">{t('totalLinks', 'Total Links')}</span>
+            <strong className="text-lg text-[#008c82]">{broaderCount + relatedCount + narrowerCount}</strong>
           </div>
         </div>
       </div>
@@ -755,8 +759,8 @@ function GraphPage() {
 
   if (loading && !concept) {
     return (
-        <div className="graph-page w-full min-h-[calc(100vh-3rem)] bg-slate-950 flex items-center justify-center">
-          <Skeleton className="h-12 w-64 bg-slate-800" />
+        <div className="graph-page w-full min-h-[calc(100vh-3rem)] bg-background flex items-center justify-center">
+          <Skeleton className="h-12 w-64 bg-[#eef2f6]" />
         </div>
     );
   }
@@ -768,36 +772,36 @@ function GraphPage() {
   return (
       <>
         <SEO title={seoTitle} description={seoDescription} keywords={seoKeywords} canonicalUrl={canonicalUrl} />
-        <div className="graph-page w-full min-h-[calc(100vh-3rem)] bg-linear-to-b from-slate-950 to-slate-900">
+        <div className="graph-page w-full min-h-[calc(100vh-3rem)] bg-linear-to-b from-white to-[#f3f6fa]">
            <section className="graph-shell mx-auto p-4 md:p-6 lg:p-8 flex flex-col gap-6">
             <Tabs value={activeTab} onValueChange={handleTabChange} className="graph-tabs w-full flex flex-col gap-4">
-              <div className="graph-toolbar flex flex-col md:flex-row justify-between items-start md:items-end gap-6 bg-slate-900/80 border border-slate-800 shadow-sm p-6 rounded-2xl">
+              <div className="graph-toolbar flex flex-col md:flex-row justify-between items-start md:items-end gap-6 bg-white border border-[#e4ebf2] shadow-sm p-6 rounded-sm">
                 <div className="graph-title-block flex flex-col gap-2">
-                  <Badge variant="secondary" className="w-fit text-teal-400 font-bold tracking-wide uppercase text-[10px] px-2 py-0.5 rounded-full">{t('selectedTerm', 'Selected term')}</Badge>
-                  <h2 className="graph-title text-3xl font-bold tracking-tight text-slate-50">{translatedTitle}</h2>
-                  <p className="graph-subtitle text-sm text-slate-400 font-mono bg-slate-800/80 px-2 py-1 rounded w-fit">{concept.uri}</p>
+                  <Badge variant="secondary" className="w-fit bg-[#eaf1f8] text-[#004b87] font-bold tracking-wide uppercase text-[10px] px-2 py-0.5 rounded-sm border border-[#004b87]/15">{t('selectedTerm', 'Selected term')}</Badge>
+                  <h2 className="graph-title text-3xl font-bold tracking-tight text-[#0d2436] font-heading">{translatedTitle}</h2>
+                  <p className="graph-subtitle text-sm text-[#586a7b] font-mono bg-[#f3f6fa] border border-[#e4ebf2] px-2 py-1 rounded w-fit">{concept.uri}</p>
                 </div>
 
-                <TabsList className="graph-tabs-list bg-slate-800/50 p-1 rounded-xl shadow-inner inline-flex h-12 items-center justify-center">
-                  <TabsTrigger value="graph" className="rounded-lg px-6 py-2.5 text-sm font-semibold transition-all text-slate-400 hover:text-slate-100 data-[state=active]:bg-slate-900/60 data-[state=active]:text-teal-400 data-[state=active]:shadow-sm">{t('tabGraph', 'Graph View')}</TabsTrigger>
-                  <TabsTrigger value="hierarchy" className="rounded-lg px-6 py-2.5 text-sm font-semibold transition-all text-slate-400 hover:text-slate-100 data-[state=active]:bg-slate-900/60 data-[state=active]:text-teal-400 data-[state=active]:shadow-sm">{t('tabHierarchy', 'Hierarchy')}</TabsTrigger>
+                <TabsList className="graph-tabs-list bg-[#f3f6fa] border border-[#e4ebf2] p-1 rounded-sm inline-flex h-12 items-center justify-center">
+                  <TabsTrigger value="graph" className="rounded-sm px-6 py-2.5 text-sm font-semibold transition-all text-[#586a7b] hover:text-[#14283b] data-[state=active]:bg-white data-[state=active]:text-[#004b87] data-[state=active]:shadow-sm">{t('tabGraph', 'Graph View')}</TabsTrigger>
+                  <TabsTrigger value="hierarchy" className="rounded-sm px-6 py-2.5 text-sm font-semibold transition-all text-[#586a7b] hover:text-[#14283b] data-[state=active]:bg-white data-[state=active]:text-[#004b87] data-[state=active]:shadow-sm">{t('tabHierarchy', 'Hierarchy')}</TabsTrigger>
                 </TabsList>
               </div>
 
               <TabsContent value="graph" className="graph-tab-content m-0 focus-visible:outline-none focus-visible:ring-0">
-                <Card className="graph-card rounded-2xl shadow-md border-slate-800 overflow-hidden bg-slate-900/60">
+                <Card className="graph-card rounded-sm shadow-sm border-[#e4ebf2] overflow-hidden bg-white">
                    <CardContent className="graph-card-content p-0 m-0 w-full h-[calc(100vh-200px)] relative">
                     <div className="graph-stage w-full h-full flex flex-row">
                       <DefinitionOverlay concept={concept} relatedCount={relatedCount} translatedTitle={translatedTitle} broaderCount={broaderCount} narrowerCount={narrowerCount} lang={searchLanguage} t={t} />
 
-                      <div ref={setGraphViewportElement} className="graph-viewport w-full h-full bg-slate-950 relative flex-1 cursor-grab active:cursor-grabbing">
+                      <div ref={setGraphViewportElement} className="graph-viewport w-full h-full bg-white relative flex-1 cursor-grab active:cursor-grabbing">
                         {viewportSize.width > 0 && viewportSize.height > 0 ? (
                             <ForceGraph2D
                                 ref={fgRef}
                                 graphData={graphData}
                                 width={viewportSize.width}
                                 height={viewportSize.height}
-                                backgroundColor="rgba(2, 6, 23, 1)"
+                                backgroundColor={CANVAS_BG}
                                 warmupTicks={40}
                                 cooldownTicks={120}
 
@@ -836,23 +840,23 @@ function GraphPage() {
                                       const t = getNodeId(l.target);
                                       return (s === hoverNode && t === node.id) || (t === hoverNode && s === node.id);
                                     });
-                                    if (!related && node.uri !== concept.uri) ctx.globalAlpha = 0.25;
+                                    if (!related && node.uri !== concept.uri) ctx.globalAlpha = 0.3;
                                   }
 
                                   // Dynamic box shadows
                                   if (isHovered || isCenter) {
-                                    ctx.shadowColor = isCenter ? 'rgba(0, 169, 157, 0.4)' : 'rgba(0, 75, 135, 0.3)';
-                                    ctx.shadowBlur = 10;
+                                    ctx.shadowColor = isCenter ? 'rgba(0, 169, 157, 0.35)' : 'rgba(0, 75, 135, 0.25)';
+                                    ctx.shadowBlur = 12;
                                   }
 
                                   // Primary Theme Colors
                                   ctx.fillStyle = isCenter
-                                      ? '#00a99d'
+                                      ? C_TEAL
                                       : isCluster
-                                          ? 'rgba(30, 41, 59, 0.95)'
+                                          ? C_CLUSTER_BG
                                           : isHovered
-                                              ? '#0070c0'
-                                              : '#004b87';
+                                              ? C_NAVY_HOVER
+                                              : C_NAVY;
 
                                   // Draw node text body capsule
                                   ctx.beginPath();
@@ -865,12 +869,16 @@ function GraphPage() {
 
                                   ctx.shadowColor = 'transparent';
                                   ctx.shadowBlur = 0;
-                                  ctx.lineWidth = isCenter || isHovered ? 2 : 1;
-                                  ctx.strokeStyle = isCenter ? '#ffffff' : 'rgba(255, 255, 255, 0.7)';
+                                  ctx.lineWidth = isCenter || isHovered ? 1.75 : 1;
+                                  ctx.strokeStyle = isCluster
+                                      ? 'rgba(0, 75, 135, 0.22)'
+                                      : isCenter
+                                          ? '#ffffff'
+                                          : 'rgba(255, 255, 255, 0.85)';
                                   ctx.stroke();
 
                                   // Label text
-                                  ctx.fillStyle = '#f1f5f9';
+                                  ctx.fillStyle = isCluster ? C_CLUSTER_TEXT : C_NODE_TEXT;
                                   ctx.textAlign = 'center';
                                   ctx.textBaseline = 'middle';
                                   ctx.fillText(node.name, isCluster ? x + 12 : x, y);
@@ -883,16 +891,17 @@ function GraphPage() {
                                     ctx.arc(btnX, y, btnRadius, 0, 2 * Math.PI);
 
                                     // Visual tint feedback effect if hovering just over this specific button circle
-                                    ctx.fillStyle = isButtonHovered ? '#334155' : '#1e293b';
+                                    ctx.fillStyle = isButtonHovered ? '#d6e3f0' : '#ffffff';
                                     ctx.fill();
-                                    ctx.strokeStyle = isButtonHovered ? '#2dd4bf' : '#ffffff';
+                                    ctx.strokeStyle = isButtonHovered ? C_TEAL : C_NAVY;
                                     ctx.lineWidth = 1.5;
                                     ctx.stroke();
 
+                                    // Minus glyph (collapse)
                                     ctx.beginPath();
                                     ctx.moveTo(btnX - 3.5, y);
                                     ctx.lineTo(btnX + 3.5, y);
-                                    ctx.strokeStyle = '#ffffff';
+                                    ctx.strokeStyle = C_NAVY;
                                     ctx.lineWidth = 1.5;
                                     ctx.stroke();
 
@@ -905,16 +914,17 @@ function GraphPage() {
                                     ctx.arc(btnX, y, btnRadius, 0, 2 * Math.PI);
 
                                     // Visual tint feedback effect if hovering just over this specific button circle
-                                    ctx.fillStyle = isButtonHovered ? 'rgba(45, 212, 191, 0.25)' : '#0f172a';
+                                    ctx.fillStyle = isButtonHovered ? 'rgba(0, 169, 157, 0.16)' : '#ffffff';
                                     ctx.fill();
-                                    ctx.strokeStyle = isButtonHovered ? '#2dd4bf' : (isCenter ? '#00a99d' : '#ffffff');
+                                    ctx.strokeStyle = isButtonHovered ? C_TEAL : (isCenter ? C_TEAL : C_NAVY);
                                     ctx.lineWidth = 1.5;
                                     ctx.stroke();
 
+                                    // Horizontal stroke of the +/- glyph
                                     ctx.beginPath();
                                     ctx.moveTo(btnX - 3.5, y);
                                     ctx.lineTo(btnX + 3.5, y);
-                                    ctx.strokeStyle = '#ffffff';
+                                    ctx.strokeStyle = C_NAVY;
                                     ctx.lineWidth = 1.5;
                                     ctx.stroke();
 
@@ -1049,13 +1059,13 @@ function GraphPage() {
                                   const s = getNodeId(link.source);
                                   const t = getNodeId(link.target);
                                   if (hoverNode) {
-                                    if (s === hoverNode || t === hoverNode) return '#00a99d';
-                                    return 'rgba(68, 64, 60, 0.15)';
+                                    if (s === hoverNode || t === hoverNode) return C_TEAL;
+                                    return 'rgba(100, 116, 139, 0.18)';
                                   }
-                                  return 'rgba(255, 255, 255, 0.2)';
+                                  return 'rgba(0, 75, 135, 0.22)';
                                 }}
                                 linkDirectionalArrowLength={4}
-                                linkDirectionalArrowColor={() => 'rgba(255, 255, 255, 0.4)'}
+                                linkDirectionalArrowColor={() => 'rgba(0, 75, 135, 0.45)'}
                                 linkDirectionalArrowRelPos={1}
                             />
                         ) : null}
@@ -1066,21 +1076,21 @@ function GraphPage() {
               </TabsContent>
 
               <TabsContent value="hierarchy" className="graph-tab-content m-0 focus-visible:outline-none focus-visible:ring-0">
-                <Card className="graph-card graph-card--hierarchy rounded-2xl shadow-md border-slate-800 overflow-hidden bg-slate-900/60">
-                  <CardHeader className="graph-card-header bg-slate-900/40 border-b border-slate-800 p-6">
+                <Card className="graph-card graph-card--hierarchy rounded-sm shadow-sm border-[#e4ebf2] overflow-hidden bg-white">
+                  <CardHeader className="graph-card-header bg-[#f7fafc] border-b border-[#e4ebf2] p-6">
                     <div className="graph-card-heading flex flex-col gap-2">
-                      <CardTitle className="text-xl font-bold text-slate-50">{t('hierarchyLayoutTitle', 'Concept Hierarchy')}</CardTitle>
-                      <CardDescription className="text-slate-300 text-sm">{t('hierarchyLayoutDesc', 'Browse concept layout hierarchies.')}</CardDescription>
+                      <CardTitle className="text-xl font-bold text-[#0d2436] font-heading">{t('hierarchyLayoutTitle', 'Concept Hierarchy')}</CardTitle>
+                      <CardDescription className="text-[#586a7b] text-sm">{t('hierarchyLayoutDesc', 'Browse concept layout hierarchies.')}</CardDescription>
                     </div>
                   </CardHeader>
-                   <CardContent className="graph-hierarchy-content p-0 h-[calc(100vh-200px)] relative bg-linear-to-br from-slate-950/80 via-slate-900/60 to-slate-950/70">
+                   <CardContent className="graph-hierarchy-content p-0 h-[calc(100vh-200px)] relative bg-linear-to-br from-white via-[#f7fafc] to-[#eef3f8]">
                     <div className="hierarchy-flow-shell w-full h-full flex flex-col">
                       <div className="hierarchy-flow-legend absolute top-4 left-4 z-10 flex gap-2">
                         {(['broader', 'related', 'narrower'] as const).map((kind) => (
                             <button
                                 key={kind}
                                 type="button"
-                                className={`px-4 py-2 text-sm font-semibold rounded-full border shadow-sm transition-all ${expandedGroups[kind] ? 'bg-teal-500/20 text-teal-300 border-teal-500/40' : 'bg-slate-800/50 text-slate-400 border-slate-700/50 hover:bg-slate-700/50'}`}
+                                className={`px-4 py-2 text-sm font-semibold rounded-sm border shadow-sm transition-all ${expandedGroups[kind] ? 'bg-[#eaf1f8] text-[#004b87] border-[#004b87]/30' : 'bg-white text-[#586a7b] border-[#e4ebf2] hover:bg-[#f3f6fa] hover:text-[#14283b]'}`}
                                 onClick={() => toggleHierarchyGroup(kind)}
                             >
                               {kind === 'related' ? t('sharedRelated', 'Shared / Related') : t(`legend${kind}`, kind[0].toUpperCase() + kind.slice(1))}
@@ -1111,12 +1121,12 @@ function GraphPage() {
                                 elementsSelectable={false}
                                 defaultEdgeOptions={{
                                   type: 'smoothstep',
-                                  style: { stroke: 'rgba(0, 169, 157, 0.5)', strokeWidth: 2, opacity: 0.7 },
+                                  style: { stroke: 'rgba(0, 75, 135, 0.45)', strokeWidth: 2, opacity: 0.8 },
                                 }}
                                 proOptions={{ hideAttribution: true }}
                             />
                         ) : (
-                            <div className="hierarchy-empty-state w-full h-full flex items-center justify-center text-slate-400">Preparing view...</div>
+                            <div className="hierarchy-empty-state w-full h-full flex items-center justify-center text-[#7c8ba0]">Preparing view...</div>
                         )}
                       </div>
                     </div>
