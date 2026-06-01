@@ -18,7 +18,7 @@ const BackgroundField = () => (
       className="absolute inset-0"
       style={{
         backgroundImage:
-          'radial-gradient(circle at center, rgba(0,75,135,0.10) 1px, transparent 1.4px)',
+          'radial-gradient(circle at center, color-mix(in srgb, var(--brand-navy) 12%, transparent) 1px, transparent 1.4px)',
         backgroundSize: '28px 28px',
         maskImage: 'radial-gradient(ellipse 75% 55% at 50% 0%, #000 35%, transparent 100%)',
         WebkitMaskImage: 'radial-gradient(ellipse 75% 55% at 50% 0%, #000 35%, transparent 100%)',
@@ -138,27 +138,27 @@ function SearchPage() {
         canonicalUrl={canonicalUrl}
       />
       {/* COBISS accent band */}
-      <div className="absolute inset-x-0 top-0 h-1 bg-linear-to-r from-[#004b87] via-[#0070c0] to-[#00a99d] z-20" />
+      <div className="absolute inset-x-0 top-0 h-1 bg-linear-to-r from-[var(--brand-navy)] via-[var(--brand-navy-mid)] to-[var(--brand-teal)] z-20" />
       <BackgroundField />
       <div className="relative z-10 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20 pb-32 flex flex-col items-center">
         {/* Hero Header */}
         <div className="text-center w-full max-w-3xl mb-12">
-          <h1 className="font-heading text-5xl md:text-6xl font-bold tracking-tight mb-5 text-[#0d2436] leading-[1.05]">
+          <h1 className="font-heading text-5xl md:text-6xl font-bold tracking-tight mb-5 text-[var(--ink-strong)] leading-[1.05]">
             {t('heroTitle', 'Explore the Semantic Web')}
           </h1>
-          <p className="text-lg text-[#586a7b] max-w-2xl mx-auto leading-relaxed">
+          <p className="text-lg text-[var(--ink-muted)] max-w-2xl mx-auto leading-relaxed">
             {t('heroSubtitle', 'Navigate through the vast interconnected network of the Slovenian Thesaurus with our powerful graphed ontology platform.')}
           </p>
         </div>
         {/* Search Command Center */}
         <div className="w-full max-w-2xl relative z-50 mb-8">
           <div className={cn(
-            "relative flex items-center p-1.5 rounded-sm bg-white border shadow-sm transition-colors duration-150",
+            "relative flex items-center p-1.5 rounded-sm bg-[var(--surface)] border shadow-sm transition-colors duration-150",
             isFocused
-              ? "border-[#00a99d] ring-2 ring-[#00a99d]/25"
-              : "border-[#cdd9e5] hover:border-[#b9c8d8]"
+              ? "border-[var(--brand-teal)] ring-2 ring-[var(--brand-teal)]/25"
+              : "border-[var(--line-strong)] hover:border-[var(--line-hover)]"
           )}>
-            <div className="pl-4 pr-2 text-[#7c8ba0]">
+            <div className="pl-4 pr-2 text-[var(--ink-faint)]">
               <Search className="w-5 h-5" />
             </div>
             <Input
@@ -169,10 +169,10 @@ function SearchPage() {
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
               onChange={handleSearchChange}
-              className="flex-1 border-0 bg-transparent text-lg h-12 text-[#14283b] placeholder:text-[#9aa8ba] focus-visible:ring-0 focus-visible:ring-offset-0"
+              className="flex-1 border-0 bg-transparent text-lg h-12 text-[var(--ink)] placeholder:text-[var(--ink-faint-2)] focus-visible:ring-0 focus-visible:ring-offset-0"
             />
-            <div className="hidden sm:flex items-center space-x-1 pr-3 text-[#9aa8ba]">
-              <kbd className="px-2 py-1 bg-[#f3f6fa] rounded-sm text-xs font-medium border border-[#dce4ec] flex items-center space-x-1">
+            <div className="hidden sm:flex items-center space-x-1 pr-3 text-[var(--ink-faint-2)]">
+              <kbd className="px-2 py-1 bg-[var(--surface-muted)] rounded-sm text-xs font-medium border border-[var(--line)] flex items-center space-x-1">
                 <Command className="w-3 h-3" />
                 <span>K</span>
               </kbd>
@@ -181,14 +181,14 @@ function SearchPage() {
           {/* Autocomplete Overlay */}
           {(loading || error || suggestions.length > 0) && (
             <div className="absolute top-full left-0 w-full z-50 mt-2">
-              <div className="bg-white border border-[#dce4ec] rounded-sm shadow-lg shadow-[#004b87]/5 overflow-hidden text-left">
+              <div className="bg-[var(--surface)] border border-[var(--line)] rounded-sm shadow-lg shadow-[var(--brand-navy)]/5 overflow-hidden text-left">
                 {loading && (
                   <div className="p-4 space-y-3">
-                    <Skeleton className="h-5 w-3/4 bg-[#eef2f6]" />
-                    <Skeleton className="h-5 w-1/2 bg-[#eef2f6]" />
+                    <Skeleton className="h-5 w-3/4 bg-[var(--surface-muted)]" />
+                    <Skeleton className="h-5 w-1/2 bg-[var(--surface-muted)]" />
                   </div>
                 )}
-                {error && <p className="p-4 text-[#c0392b] text-sm">{t('searchErrorPrefix', 'Error:')} {error.message}</p>}
+                {error && <p className="p-4 text-[var(--danger)] text-sm">{t('searchErrorPrefix', 'Error:')} {error.message}</p>}
                 {suggestions.length > 0 && (
                   <ul className="max-h-87.5 overflow-y-auto w-full py-2 custom-scrollbar">
                     {suggestions.map((concept) => (
@@ -198,10 +198,10 @@ function SearchPage() {
                           e.preventDefault();
                           handleSuggestionClick(concept.uri);
                         }}
-                        className="px-5 py-3 cursor-pointer hover:bg-[#eaf1f8] flex items-center group transition-colors border-l-2 border-transparent hover:border-[#00a99d]"
+                        className="px-5 py-3 cursor-pointer hover:bg-[var(--tint-navy)] flex items-center group transition-colors border-l-2 border-transparent hover:border-[var(--brand-teal)]"
                       >
-                        <Network className="w-4 h-4 mr-3 text-[#9aa8ba] group-hover:text-[#00a99d] transition-colors" />
-                        <span className="font-medium text-[#33485c] group-hover:text-[#004b87]">{getSuggestionLabel(concept)}</span>
+                        <Network className="w-4 h-4 mr-3 text-[var(--ink-faint-2)] group-hover:text-[var(--brand-teal)] transition-colors" />
+                        <span className="font-medium text-[var(--ink-soft)] group-hover:text-[var(--brand-navy)]">{getSuggestionLabel(concept)}</span>
                       </li>
                     ))}
                   </ul>
@@ -212,12 +212,12 @@ function SearchPage() {
         </div>
          {/* Live Suggestions / Trends */}
          <div className="flex flex-wrap items-center justify-center gap-2 max-w-3xl mb-20">
-           <span className="text-sm text-[#7c8ba0] mr-2">{t('trendingLabel', 'Trending:')}</span>
+           <span className="text-sm text-[var(--ink-faint)] mr-2">{t('trendingLabel', 'Trending:')}</span>
            {trendingConcepts.map((item, i) => (
             <button
               key={i}
               onClick={() => executeSearch(item.query)}
-              className="px-3.5 py-1.5 rounded-sm text-xs font-semibold bg-white text-[#33485c] border border-[#dce4ec] hover:border-[#00a99d] hover:text-[#004b87] hover:bg-[#f3f9f8] transition-colors"
+              className="px-3.5 py-1.5 rounded-sm text-xs font-semibold bg-[var(--surface)] text-[var(--ink-soft)] border border-[var(--line)] hover:border-[var(--brand-teal)] hover:text-[var(--brand-navy)] hover:bg-[var(--tint-teal-soft)] transition-colors"
             >
               {item.label}
             </button>
@@ -232,12 +232,12 @@ function SearchPage() {
            ].map((stat, i) => (
             <div
               key={i}
-              className="flex items-center gap-4 p-5 rounded-sm bg-white border border-[#e4ebf2] border-t-2 border-t-[#004b87]"
+              className="flex items-center gap-4 p-5 rounded-sm bg-[var(--surface)] border border-[var(--line)] border-t-2 border-t-[var(--brand-navy)]"
             >
-              <div className="shrink-0 w-11 h-11 rounded-sm bg-[#eaf1f8] text-[#004b87] flex items-center justify-center">{stat.icon}</div>
+              <div className="shrink-0 w-11 h-11 rounded-sm bg-[var(--tint-navy)] text-[var(--brand-navy)] flex items-center justify-center">{stat.icon}</div>
               <div className="text-left">
-                <h3 className="text-xl font-bold text-[#14283b] leading-tight font-heading">{stat.label}</h3>
-                <p className="text-sm text-[#586a7b]">{stat.desc}</p>
+                <h3 className="text-xl font-bold text-[var(--ink)] leading-tight font-heading">{stat.label}</h3>
+                <p className="text-sm text-[var(--ink-muted)]">{stat.desc}</p>
               </div>
             </div>
           ))}
@@ -245,76 +245,76 @@ function SearchPage() {
         {/* Feature Grid */}
         <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-3 gap-4 mb-24">
           {/* Card 1: Interactive Graph Preview */}
-          <div className="md:col-span-2 group relative overflow-hidden rounded-sm bg-white border border-[#e4ebf2] p-8 hover:border-[#004b87]/40 transition-colors duration-200">
+          <div className="md:col-span-2 group relative overflow-hidden rounded-sm bg-[var(--surface)] border border-[var(--line)] p-8 hover:border-[var(--brand-navy)]/40 transition-colors duration-200">
             <div className="relative z-10 flex flex-col h-full justify-between">
                <div>
-                 <div className="w-12 h-12 rounded-sm bg-[#eaf1f8] flex items-center justify-center mb-6 border border-[#004b87]/15 group-hover:bg-[#dde9f5] transition-colors">
-                   <Network className="w-6 h-6 text-[#004b87]" />
+                 <div className="w-12 h-12 rounded-sm bg-[var(--tint-navy)] flex items-center justify-center mb-6 border border-[var(--brand-navy)]/15 group-hover:bg-[var(--tint-navy-strong)] transition-colors">
+                   <Network className="w-6 h-6 text-[var(--brand-navy)]" />
                  </div>
-                 <h3 className="text-2xl font-bold text-[#14283b] mb-3 font-heading">{t('cardGraphTitle', 'Interactive Graph Views')}</h3>
-                 <p className="text-[#586a7b] max-w-md leading-relaxed">{t('cardGraphDesc', 'Experience relationships naturally. Our force-directed graph renderer smoothly animates connections between broader, narrower, and related concepts in real-time.')}</p>
+                 <h3 className="text-2xl font-bold text-[var(--ink)] mb-3 font-heading">{t('cardGraphTitle', 'Interactive Graph Views')}</h3>
+                 <p className="text-[var(--ink-muted)] max-w-md leading-relaxed">{t('cardGraphDesc', 'Experience relationships naturally. Our force-directed graph renderer smoothly animates connections between broader, narrower, and related concepts in real-time.')}</p>
                </div>
              </div>
             {/* Static mock graph */}
             <div className="absolute right-0 bottom-0 w-2/3 h-full opacity-50 group-hover:opacity-80 transition-opacity duration-300 pointer-events-none">
               <svg className="w-full h-full" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-                <line x1="100" y1="100" x2="150" y2="60" stroke="#004b87" strokeWidth="1" opacity="0.35" />
-                <line x1="100" y1="100" x2="160" y2="140" stroke="#004b87" strokeWidth="1" opacity="0.25" />
-                <line x1="100" y1="100" x2="50" y2="90" stroke="#004b87" strokeWidth="1" opacity="0.3" />
-                <circle cx="100" cy="100" r="8" fill="#00a99d" />
-                <circle cx="150" cy="60" r="5" fill="#004b87" />
-                <circle cx="160" cy="140" r="6" fill="#004b87" />
-                <circle cx="50" cy="90" r="4" fill="#0070c0" />
+                <line x1="100" y1="100" x2="150" y2="60" stroke="var(--brand-navy)" strokeWidth="1" opacity="0.35" />
+                <line x1="100" y1="100" x2="160" y2="140" stroke="var(--brand-navy)" strokeWidth="1" opacity="0.25" />
+                <line x1="100" y1="100" x2="50" y2="90" stroke="var(--brand-navy)" strokeWidth="1" opacity="0.3" />
+                <circle cx="100" cy="100" r="8" fill="var(--brand-teal)" />
+                <circle cx="150" cy="60" r="5" fill="var(--brand-navy)" />
+                <circle cx="160" cy="140" r="6" fill="var(--brand-navy)" />
+                <circle cx="50" cy="90" r="4" fill="var(--brand-navy-mid)" />
               </svg>
             </div>
           </div>
           {/* Card 2: Hierarchy Trees */}
-          <div className="md:col-span-1 group rounded-sm bg-white border border-[#e4ebf2] p-8 hover:border-[#00a99d]/40 transition-colors duration-200 flex flex-col justify-between overflow-hidden relative">
+          <div className="md:col-span-1 group rounded-sm bg-[var(--surface)] border border-[var(--line)] p-8 hover:border-[var(--brand-teal)]/40 transition-colors duration-200 flex flex-col justify-between overflow-hidden relative">
             <div className="relative z-10">
-               <div className="w-12 h-12 rounded-sm bg-[#e3f5f3] flex items-center justify-center mb-6 border border-[#00a99d]/20">
-                 <GitMerge className="w-6 h-6 text-[#008c82]" />
+               <div className="w-12 h-12 rounded-sm bg-[var(--tint-teal)] flex items-center justify-center mb-6 border border-[var(--brand-teal)]/20">
+                 <GitMerge className="w-6 h-6 text-[var(--brand-teal-strong)]" />
                </div>
-               <h3 className="text-xl font-bold text-[#14283b] mb-2 font-heading">{t('cardHierarchyTitle', 'Hierarchical Taxonomy')}</h3>
-               <p className="text-sm text-[#586a7b] leading-relaxed">{t('cardHierarchyDesc', 'Navigate strict vertical trees of taxonomical breadth intuitively.')}</p>
+               <h3 className="text-xl font-bold text-[var(--ink)] mb-2 font-heading">{t('cardHierarchyTitle', 'Hierarchical Taxonomy')}</h3>
+               <p className="text-sm text-[var(--ink-muted)] leading-relaxed">{t('cardHierarchyDesc', 'Navigate strict vertical trees of taxonomical breadth intuitively.')}</p>
              </div>
             {/* CSS Tree Mock */}
             <div className="mt-8 flex flex-col items-center space-y-2 opacity-80 group-hover:opacity-100 transition-opacity">
-              <div className="w-16 h-6 bg-[#eaf1f8] rounded-none border border-[#cfdbe7]" />
-              <div className="w-px h-4 bg-[#00a99d]/60" />
-              <div className="w-32 h-px bg-[#00a99d]/60 flex justify-between">
-                <div className="w-px h-4 bg-[#00a99d]/60 translate-y-px" />
-                <div className="w-px h-4 bg-[#00a99d]/60 translate-y-px" />
+              <div className="w-16 h-6 bg-[var(--tint-navy)] rounded-none border border-[var(--line-strong)]" />
+              <div className="w-px h-4 bg-[var(--brand-teal)]/60" />
+              <div className="w-32 h-px bg-[var(--brand-teal)]/60 flex justify-between">
+                <div className="w-px h-4 bg-[var(--brand-teal)]/60 translate-y-px" />
+                <div className="w-px h-4 bg-[var(--brand-teal)]/60 translate-y-px" />
               </div>
               <div className="flex justify-between w-32 px-1">
-                <div className="w-12 h-6 bg-[#eaf1f8] rounded-none border border-[#cfdbe7]" />
-                <div className="w-12 h-6 bg-white rounded-none border border-[#00a99d]/50 border-b-2" />
+                <div className="w-12 h-6 bg-[var(--tint-navy)] rounded-none border border-[var(--line-strong)]" />
+                <div className="w-12 h-6 bg-[var(--surface)] rounded-none border border-[var(--brand-teal)]/50 border-b-2" />
               </div>
             </div>
           </div>
           {/* Card 3: Bilingual Mapping */}
-          <div className="md:col-span-3 group rounded-sm bg-linear-to-r from-white to-[#eaf1f8] border border-[#e4ebf2] p-8 hover:border-[#004b87]/30 transition-colors duration-200 flex flex-col md:flex-row items-center justify-between">
+          <div className="md:col-span-3 group rounded-sm bg-linear-to-r from-[var(--surface)] to-[var(--tint-navy)] border border-[var(--line)] p-8 hover:border-[var(--brand-navy)]/30 transition-colors duration-200 flex flex-col md:flex-row items-center justify-between">
             <div className="mb-6 md:mb-0 max-w-xl">
-               <div className="w-12 h-12 rounded-sm bg-white flex items-center justify-center mb-4 border border-[#004b87]/15 shadow-sm">
-                 <Languages className="w-6 h-6 text-[#004b87]" />
+               <div className="w-12 h-12 rounded-sm bg-[var(--surface)] flex items-center justify-center mb-4 border border-[var(--brand-navy)]/15 shadow-sm">
+                 <Languages className="w-6 h-6 text-[var(--brand-navy)]" />
                </div>
-               <h3 className="text-2xl font-bold text-[#14283b] mb-2 font-heading">{t('cardBilingualTitle', 'Native Bilingual Mapping')}</h3>
-               <p className="text-[#586a7b] leading-relaxed">{t('cardBilingualDesc', 'Seamlessly fluid translations mappings between Slovenian and English localized terms.')}</p>
+               <h3 className="text-2xl font-bold text-[var(--ink)] mb-2 font-heading">{t('cardBilingualTitle', 'Native Bilingual Mapping')}</h3>
+               <p className="text-[var(--ink-muted)] leading-relaxed">{t('cardBilingualDesc', 'Seamlessly fluid translations mappings between Slovenian and English localized terms.')}</p>
              </div>
             {/* Static bilingual mock */}
-            <div className="relative w-64 h-16 bg-white rounded-sm border border-[#dce4ec] flex items-center justify-between px-6 overflow-hidden shadow-sm group-hover:border-[#00a99d]/50 transition-colors">
-               <span className="text-[#33485c] font-medium z-10">{t('searchExampleSl', 'Umetnost')}</span>
-              <Network className="w-4 h-4 text-[#9aa8ba] z-10" />
-               <span className="text-[#008c82] font-semibold z-10">{t('searchExampleEn', 'Art')}</span>
+            <div className="relative w-64 h-16 bg-[var(--surface)] rounded-sm border border-[var(--line)] flex items-center justify-between px-6 overflow-hidden shadow-sm group-hover:border-[var(--brand-teal)]/50 transition-colors">
+               <span className="text-[var(--ink-soft)] font-medium z-10">{t('searchExampleSl', 'Umetnost')}</span>
+              <Network className="w-4 h-4 text-[var(--ink-faint-2)] z-10" />
+               <span className="text-[var(--brand-teal-strong)] font-semibold z-10">{t('searchExampleEn', 'Art')}</span>
             </div>
           </div>
         </div>
         {/* About Block */}
-         <div className="w-full max-w-4xl p-8 rounded-sm bg-[#f7fafc] border border-[#e4ebf2] border-l-4 border-l-[#00a99d]">
-           <h4 className="text-lg font-semibold text-[#14283b] mb-4 font-heading">{t('aboutCardTitle', 'About SGC Navigator')}</h4>
-           <p className="text-[#4a5d6e] leading-relaxed mb-4">
+         <div className="w-full max-w-4xl p-8 rounded-sm bg-[var(--surface-subtle)] border border-[var(--line)] border-l-4 border-l-[var(--brand-teal)]">
+           <h4 className="text-lg font-semibold text-[var(--ink)] mb-4 font-heading">{t('aboutCardTitle', 'About SGC Navigator')}</h4>
+           <p className="text-[var(--ink-soft)] leading-relaxed mb-4">
              {t('aboutCardDesc', 'The SGC (Splošni geslovnik COBISS) Navigator provides an advanced semantic visual interface for the exhaustive Slovenian thesaurus. Leveraging graph technologies, it turns hundreds of thousands of controlled vocabulary entries into an explorer-friendly format, showcasing exactly how concepts interrelate structurally and linguistically.')}
            </p>
-           <p className="text-[#7c8ba0] text-sm italic">
+           <p className="text-[var(--ink-faint)] text-sm italic">
              {t('aboutCardNote', 'Developed to support researchers, indexers, and developers interacting with structured bibliographic data.')}
            </p>
          </div>

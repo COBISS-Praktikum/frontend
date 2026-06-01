@@ -16,6 +16,7 @@ import { Footer } from '@/components/layout/Footer.tsx';
 import { SEO } from '@/components/layout/SEO.tsx';
 import { stripLanguageTag } from '@/lib/utils.ts';
 import { useConceptDefinition } from '@/hooks/useConceptDefinition.ts';
+import { useTheme } from '@/hooks/useTheme.ts';
 import '@xyflow/react/dist/style.css';
 import './GraphPage.css';
 
@@ -70,14 +71,75 @@ interface GraphData {
   links: GraphLink[];
 }
 
-// ─── COBISS canvas palette ──────────────────────────────────────────────────
-const CANVAS_BG = '#ffffff';
-const C_NAVY = '#004b87';
-const C_NAVY_HOVER = '#0070c0';
-const C_TEAL = '#00a99d';
-const C_CLUSTER_BG = '#eef3f8';
-const C_CLUSTER_TEXT = '#1f3a52';
-const C_NODE_TEXT = '#ffffff';
+// ─── COBISS canvas palette (theme-aware) ────────────────────────────────────
+// The force-graph canvas is painted in JS, so it can't read CSS variables the
+// way the DOM does — we keep two explicit palettes and pick one by theme.
+type CanvasPalette = {
+  bg: string;
+  navy: string;
+  navyHover: string;
+  teal: string;
+  clusterBg: string;
+  clusterText: string;
+  nodeText: string;
+  centerStroke: string;
+  nodeStroke: string;
+  clusterStroke: string;
+  btnFill: string;
+  clusterBtnHover: string;
+  nodeBtnHover: string;
+  shadowCenter: string;
+  shadowNode: string;
+  link: string;
+  linkDim: string;
+  arrow: string;
+  edge: string;
+};
+
+const CANVAS_PALETTE: Record<'light' | 'dark', CanvasPalette> = {
+  light: {
+    bg: '#ffffff',
+    navy: '#004b87',
+    navyHover: '#0070c0',
+    teal: '#00a99d',
+    clusterBg: '#eef3f8',
+    clusterText: '#1f3a52',
+    nodeText: '#ffffff',
+    centerStroke: '#ffffff',
+    nodeStroke: 'rgba(255, 255, 255, 0.85)',
+    clusterStroke: 'rgba(0, 75, 135, 0.22)',
+    btnFill: '#ffffff',
+    clusterBtnHover: '#d6e3f0',
+    nodeBtnHover: 'rgba(0, 169, 157, 0.16)',
+    shadowCenter: 'rgba(0, 169, 157, 0.35)',
+    shadowNode: 'rgba(0, 75, 135, 0.25)',
+    link: 'rgba(0, 75, 135, 0.22)',
+    linkDim: 'rgba(100, 116, 139, 0.18)',
+    arrow: 'rgba(0, 75, 135, 0.45)',
+    edge: 'rgba(0, 75, 135, 0.45)',
+  },
+  dark: {
+    bg: '#0c1a28',
+    navy: '#2f86c4',
+    navyHover: '#54a6e0',
+    teal: '#19c5b6',
+    clusterBg: '#15314c',
+    clusterText: '#cfe0ef',
+    nodeText: '#ffffff',
+    centerStroke: '#0c1a28',
+    nodeStroke: 'rgba(8, 20, 32, 0.55)',
+    clusterStroke: 'rgba(120, 170, 210, 0.40)',
+    btnFill: '#0e2233',
+    clusterBtnHover: '#1d4063',
+    nodeBtnHover: 'rgba(31, 195, 180, 0.24)',
+    shadowCenter: 'rgba(31, 195, 180, 0.45)',
+    shadowNode: 'rgba(84, 166, 224, 0.40)',
+    link: 'rgba(120, 170, 210, 0.30)',
+    linkDim: 'rgba(120, 140, 160, 0.16)',
+    arrow: 'rgba(120, 170, 210, 0.55)',
+    edge: 'rgba(120, 170, 210, 0.55)',
+  },
+};
 
 const EMPTY_CONCEPT_NODES: ConceptNode[] = [];
 
@@ -210,21 +272,21 @@ const HierarchyConceptNode = memo(function HierarchyConceptNode({ data }: NodePr
 
         <button
             type="button"
-            className={`hierarchy-flow-node-card hierarchy-flow-node-card--${data.kind} nodrag nopan shadow-sm hover:shadow-md transition-shadow rounded-sm border border-[#e4ebf2] bg-white text-card-foreground group flex items-start gap-3 p-4`}
+            className={`hierarchy-flow-node-card hierarchy-flow-node-card--${data.kind} nodrag nopan shadow-sm hover:shadow-md transition-shadow rounded-sm border border-[var(--line)] bg-[var(--surface)] text-card-foreground group flex items-start gap-3 p-4`}
             onClick={() => data.onClick(data.uri)}
             onMouseDown={(e) => e.stopPropagation()}
             title={data.uri}
             aria-label={ariaLabel}
         >
-        <span className="hierarchy-flow-node-icon bg-[#eaf1f8] border border-[#004b87]/15 text-[#004b87] rounded-sm w-8 h-8 flex items-center justify-center shrink-0 group-hover:border-[#00a99d]/30 group-hover:bg-[#e3f5f3] transition-colors" aria-hidden="true">
+        <span className="hierarchy-flow-node-icon bg-[var(--tint-navy)] border border-[var(--brand-navy)]/15 text-[var(--brand-navy)] rounded-sm w-8 h-8 flex items-center justify-center shrink-0 group-hover:border-[var(--brand-teal)]/30 group-hover:bg-[var(--tint-teal)] transition-colors" aria-hidden="true">
           {data.kind === 'root' ? '🎯' : data.kind === 'broader' ? '⬆️' : data.kind === 'narrower' ? '⬇️' : '↔️'}
         </span>
           <span className="hierarchy-flow-node-copy text-left flex flex-col pt-1">
-          <span className="hierarchy-flow-node-title font-semibold text-[15px] text-[#14283b] group-hover:text-[#004b87] transition-colors">{label}</span>
+          <span className="hierarchy-flow-node-title font-semibold text-[15px] text-[var(--ink)] group-hover:text-[var(--brand-navy)] transition-colors">{label}</span>
             {relationChips.length > 0 ? (
                 <span className="hierarchy-flow-node-relations mt-2 flex flex-wrap gap-1" aria-hidden="true">
               {relationChips.map((relation) => (
-                  <span key={relation} className={`hierarchy-flow-node-relation hierarchy-flow-node-relation--${relation} text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-sm bg-[#eaf1f8] text-[#004b87] border border-[#004b87]/15`}>
+                  <span key={relation} className={`hierarchy-flow-node-relation hierarchy-flow-node-relation--${relation} text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-sm bg-[var(--tint-navy)] text-[var(--brand-navy)] border border-[var(--brand-navy)]/15`}>
                   {relation}
                 </span>
               ))}
@@ -427,7 +489,7 @@ function DefinitionOverlay({ concept, translatedTitle, relatedCount, broaderCoun
   const aiBadge =
       defState.status === 'ready' && defState.source !== 'native' ? (
           <span
-              className="inline-flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider text-[#008c82] mt-1"
+              className="inline-flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider text-[var(--brand-teal-strong)] mt-1"
               title={defState.source === 'translated' ? 'Translated by AI' : 'Generated by AI'}
               aria-label={defState.source === 'translated' ? 'AI translated definition' : 'AI generated definition'}
           >
@@ -437,15 +499,15 @@ function DefinitionOverlay({ concept, translatedTitle, relatedCount, broaderCoun
       ) : null;
 
   return (
-      <div className="graph-overlay absolute top-4 left-4 z-10 w-72 bg-white/95 backdrop-blur-sm border border-[#dce4ec] shadow-lg shadow-[#004b87]/5 p-5 rounded-sm flex flex-col gap-3 pointer-events-none">
-        <h3 className="text-lg font-bold leading-tight text-[#14283b] font-heading">{translatedTitle}</h3>
+      <div className="graph-overlay absolute top-4 left-4 z-10 w-72 bg-[var(--surface)]/95 backdrop-blur-sm border border-[var(--line)] shadow-lg shadow-[var(--brand-navy)]/5 p-5 rounded-sm flex flex-col gap-3 pointer-events-none">
+        <h3 className="text-lg font-bold leading-tight text-[var(--ink)] font-heading">{translatedTitle}</h3>
 
-        <div className="graph-overlay-definition text-sm text-[#586a7b] leading-relaxed">
+        <div className="graph-overlay-definition text-sm text-[var(--ink-muted)] leading-relaxed">
           {defState.status === 'loading' ? (
               <div className="flex flex-col gap-1.5" aria-label={t('loadingDefinition', 'Loading definition…')}>
-                <Skeleton className="h-3 w-full rounded bg-[#eef2f6]" />
-                <Skeleton className="h-3 w-5/6 rounded bg-[#eef2f6]" />
-                <Skeleton className="h-3 w-4/6 rounded bg-[#eef2f6]" />
+                <Skeleton className="h-3 w-full rounded bg-[var(--surface-muted)]" />
+                <Skeleton className="h-3 w-5/6 rounded bg-[var(--surface-muted)]" />
+                <Skeleton className="h-3 w-4/6 rounded bg-[var(--surface-muted)]" />
               </div>
           ) : definitionText ? (
               <>
@@ -458,21 +520,21 @@ function DefinitionOverlay({ concept, translatedTitle, relatedCount, broaderCoun
         <Separator className="graph-overlay-separator my-2" />
 
         <div className="graph-metrics flex justify-between gap-2" aria-label="Concept relation summary">
-          <div className="graph-metric flex flex-col bg-[#f3f6fa] border border-[#e4ebf2] p-2 rounded-sm flex-1 text-center">
-            <span className="text-[10px] uppercase font-bold text-[#7c8ba0]">{t('broader', 'Broader')}</span>
-            <strong className="text-lg text-[#004b87]">{broaderCount}</strong>
+          <div className="graph-metric flex flex-col bg-[var(--surface-muted)] border border-[var(--line)] p-2 rounded-sm flex-1 text-center">
+            <span className="text-[10px] uppercase font-bold text-[var(--ink-faint)]">{t('broader', 'Broader')}</span>
+            <strong className="text-lg text-[var(--brand-navy)]">{broaderCount}</strong>
           </div>
-          <div className="graph-metric flex flex-col bg-[#f3f6fa] border border-[#e4ebf2] p-2 rounded-sm flex-1 text-center">
-            <span className="text-[10px] uppercase font-bold text-[#7c8ba0]">{t('narrower', 'Narrower')}</span>
-            <strong className="text-lg text-[#004b87]">{narrowerCount}</strong>
+          <div className="graph-metric flex flex-col bg-[var(--surface-muted)] border border-[var(--line)] p-2 rounded-sm flex-1 text-center">
+            <span className="text-[10px] uppercase font-bold text-[var(--ink-faint)]">{t('narrower', 'Narrower')}</span>
+            <strong className="text-lg text-[var(--brand-navy)]">{narrowerCount}</strong>
           </div>
-          <div className="graph-metric flex flex-col bg-[#f3f6fa] border border-[#e4ebf2] p-2 rounded-sm flex-1 min-w-[60px] text-center">
-            <span className="text-[10px] uppercase font-bold text-[#7c8ba0]">{t('related', 'Related')}</span>
-            <strong className="text-lg text-[#004b87]">{relatedCount}</strong>
+          <div className="graph-metric flex flex-col bg-[var(--surface-muted)] border border-[var(--line)] p-2 rounded-sm flex-1 min-w-[60px] text-center">
+            <span className="text-[10px] uppercase font-bold text-[var(--ink-faint)]">{t('related', 'Related')}</span>
+            <strong className="text-lg text-[var(--brand-navy)]">{relatedCount}</strong>
           </div>
-          <div className="graph-metric flex flex-col bg-[#eaf1f8] border border-[#004b87]/15 p-2 rounded-sm flex-1 text-center">
-            <span className="text-[10px] uppercase font-bold text-[#7c8ba0]">{t('totalLinks', 'Total Links')}</span>
-            <strong className="text-lg text-[#008c82]">{broaderCount + relatedCount + narrowerCount}</strong>
+          <div className="graph-metric flex flex-col bg-[var(--tint-navy)] border border-[var(--brand-navy)]/15 p-2 rounded-sm flex-1 text-center">
+            <span className="text-[10px] uppercase font-bold text-[var(--ink-faint)]">{t('totalLinks', 'Total Links')}</span>
+            <strong className="text-lg text-[var(--brand-teal-strong)]">{broaderCount + relatedCount + narrowerCount}</strong>
           </div>
         </div>
       </div>
@@ -481,6 +543,8 @@ function DefinitionOverlay({ concept, translatedTitle, relatedCount, broaderCoun
 
 function GraphPage() {
   const { t, i18n } = useTranslation();
+  const { theme } = useTheme();
+  const P = CANVAS_PALETTE[theme === 'dark' ? 'dark' : 'light'];
   const selectedLanguage = i18n.resolvedLanguage ?? i18n.language ?? 'en';
   const searchLanguage = selectedLanguage.toLowerCase().startsWith('sl') ? 'sl' : 'en';
   const [hoveringButtonOfNode, setHoveringButtonOfNode] = useState<string | null>(null);
@@ -760,7 +824,7 @@ function GraphPage() {
   if (loading && !concept) {
     return (
         <div className="graph-page w-full min-h-[calc(100vh-3rem)] bg-background flex items-center justify-center">
-          <Skeleton className="h-12 w-64 bg-[#eef2f6]" />
+          <Skeleton className="h-12 w-64 bg-[var(--surface-muted)]" />
         </div>
     );
   }
@@ -772,36 +836,36 @@ function GraphPage() {
   return (
       <>
         <SEO title={seoTitle} description={seoDescription} keywords={seoKeywords} canonicalUrl={canonicalUrl} />
-        <div className="graph-page w-full min-h-[calc(100vh-3rem)] bg-linear-to-b from-white to-[#f3f6fa]">
+        <div className="graph-page w-full min-h-[calc(100vh-3rem)] bg-linear-to-b from-[var(--surface)] to-[var(--surface-muted)]">
            <section className="graph-shell mx-auto p-4 md:p-6 lg:p-8 flex flex-col gap-6">
             <Tabs value={activeTab} onValueChange={handleTabChange} className="graph-tabs w-full flex flex-col gap-4">
-              <div className="graph-toolbar flex flex-col md:flex-row justify-between items-start md:items-end gap-6 bg-white border border-[#e4ebf2] shadow-sm p-6 rounded-sm">
+              <div className="graph-toolbar flex flex-col md:flex-row justify-between items-start md:items-end gap-6 bg-[var(--surface)] border border-[var(--line)] shadow-sm p-6 rounded-sm">
                 <div className="graph-title-block flex flex-col gap-2">
-                  <Badge variant="secondary" className="w-fit bg-[#eaf1f8] text-[#004b87] font-bold tracking-wide uppercase text-[10px] px-2 py-0.5 rounded-sm border border-[#004b87]/15">{t('selectedTerm', 'Selected term')}</Badge>
-                  <h2 className="graph-title text-3xl font-bold tracking-tight text-[#0d2436] font-heading">{translatedTitle}</h2>
-                  <p className="graph-subtitle text-sm text-[#586a7b] font-mono bg-[#f3f6fa] border border-[#e4ebf2] px-2 py-1 rounded w-fit">{concept.uri}</p>
+                  <Badge variant="secondary" className="w-fit bg-[var(--tint-navy)] text-[var(--brand-navy)] font-bold tracking-wide uppercase text-[10px] px-2 py-0.5 rounded-sm border border-[var(--brand-navy)]/15">{t('selectedTerm', 'Selected term')}</Badge>
+                  <h2 className="graph-title text-3xl font-bold tracking-tight text-[var(--ink-strong)] font-heading">{translatedTitle}</h2>
+                  <p className="graph-subtitle text-sm text-[var(--ink-muted)] font-mono bg-[var(--surface-muted)] border border-[var(--line)] px-2 py-1 rounded w-fit">{concept.uri}</p>
                 </div>
 
-                <TabsList className="graph-tabs-list bg-[#f3f6fa] border border-[#e4ebf2] p-1 rounded-sm inline-flex h-12 items-center justify-center">
-                  <TabsTrigger value="graph" className="rounded-sm px-6 py-2.5 text-sm font-semibold transition-all text-[#586a7b] hover:text-[#14283b] data-[state=active]:bg-white data-[state=active]:text-[#004b87] data-[state=active]:shadow-sm">{t('tabGraph', 'Graph View')}</TabsTrigger>
-                  <TabsTrigger value="hierarchy" className="rounded-sm px-6 py-2.5 text-sm font-semibold transition-all text-[#586a7b] hover:text-[#14283b] data-[state=active]:bg-white data-[state=active]:text-[#004b87] data-[state=active]:shadow-sm">{t('tabHierarchy', 'Hierarchy')}</TabsTrigger>
+                <TabsList className="graph-tabs-list bg-[var(--surface-muted)] border border-[var(--line)] p-1 rounded-sm inline-flex h-12 items-center justify-center">
+                  <TabsTrigger value="graph" className="rounded-sm px-6 py-2.5 text-sm font-semibold transition-all text-[var(--ink-muted)] hover:text-[var(--ink)] data-[state=active]:bg-[var(--surface)] data-[state=active]:text-[var(--brand-navy)] data-[state=active]:shadow-sm">{t('tabGraph', 'Graph View')}</TabsTrigger>
+                  <TabsTrigger value="hierarchy" className="rounded-sm px-6 py-2.5 text-sm font-semibold transition-all text-[var(--ink-muted)] hover:text-[var(--ink)] data-[state=active]:bg-[var(--surface)] data-[state=active]:text-[var(--brand-navy)] data-[state=active]:shadow-sm">{t('tabHierarchy', 'Hierarchy')}</TabsTrigger>
                 </TabsList>
               </div>
 
               <TabsContent value="graph" className="graph-tab-content m-0 focus-visible:outline-none focus-visible:ring-0">
-                <Card className="graph-card rounded-sm shadow-sm border-[#e4ebf2] overflow-hidden bg-white">
+                <Card className="graph-card rounded-sm shadow-sm border-[var(--line)] overflow-hidden bg-[var(--surface)]">
                    <CardContent className="graph-card-content p-0 m-0 w-full h-[calc(100vh-200px)] relative">
                     <div className="graph-stage w-full h-full flex flex-row">
                       <DefinitionOverlay concept={concept} relatedCount={relatedCount} translatedTitle={translatedTitle} broaderCount={broaderCount} narrowerCount={narrowerCount} lang={searchLanguage} t={t} />
 
-                      <div ref={setGraphViewportElement} className="graph-viewport w-full h-full bg-white relative flex-1 cursor-grab active:cursor-grabbing">
+                      <div ref={setGraphViewportElement} className="graph-viewport w-full h-full bg-[var(--surface)] relative flex-1 cursor-grab active:cursor-grabbing">
                         {viewportSize.width > 0 && viewportSize.height > 0 ? (
                             <ForceGraph2D
                                 ref={fgRef}
                                 graphData={graphData}
                                 width={viewportSize.width}
                                 height={viewportSize.height}
-                                backgroundColor={CANVAS_BG}
+                                backgroundColor={P.bg}
                                 warmupTicks={40}
                                 cooldownTicks={120}
 
@@ -845,18 +909,18 @@ function GraphPage() {
 
                                   // Dynamic box shadows
                                   if (isHovered || isCenter) {
-                                    ctx.shadowColor = isCenter ? 'rgba(0, 169, 157, 0.35)' : 'rgba(0, 75, 135, 0.25)';
+                                    ctx.shadowColor = isCenter ? P.shadowCenter : P.shadowNode;
                                     ctx.shadowBlur = 12;
                                   }
 
                                   // Primary Theme Colors
                                   ctx.fillStyle = isCenter
-                                      ? C_TEAL
+                                      ? P.teal
                                       : isCluster
-                                          ? C_CLUSTER_BG
+                                          ? P.clusterBg
                                           : isHovered
-                                              ? C_NAVY_HOVER
-                                              : C_NAVY;
+                                              ? P.navyHover
+                                              : P.navy;
 
                                   // Draw node text body capsule
                                   ctx.beginPath();
@@ -871,14 +935,14 @@ function GraphPage() {
                                   ctx.shadowBlur = 0;
                                   ctx.lineWidth = isCenter || isHovered ? 1.75 : 1;
                                   ctx.strokeStyle = isCluster
-                                      ? 'rgba(0, 75, 135, 0.22)'
+                                      ? P.clusterStroke
                                       : isCenter
-                                          ? '#ffffff'
-                                          : 'rgba(255, 255, 255, 0.85)';
+                                          ? P.centerStroke
+                                          : P.nodeStroke;
                                   ctx.stroke();
 
                                   // Label text
-                                  ctx.fillStyle = isCluster ? C_CLUSTER_TEXT : C_NODE_TEXT;
+                                  ctx.fillStyle = isCluster ? P.clusterText : P.nodeText;
                                   ctx.textAlign = 'center';
                                   ctx.textBaseline = 'middle';
                                   ctx.fillText(node.name, isCluster ? x + 12 : x, y);
@@ -891,9 +955,9 @@ function GraphPage() {
                                     ctx.arc(btnX, y, btnRadius, 0, 2 * Math.PI);
 
                                     // Visual tint feedback effect if hovering just over this specific button circle
-                                    ctx.fillStyle = isButtonHovered ? '#d6e3f0' : '#ffffff';
+                                    ctx.fillStyle = isButtonHovered ? P.clusterBtnHover : P.btnFill;
                                     ctx.fill();
-                                    ctx.strokeStyle = isButtonHovered ? C_TEAL : C_NAVY;
+                                    ctx.strokeStyle = isButtonHovered ? P.teal : P.navy;
                                     ctx.lineWidth = 1.5;
                                     ctx.stroke();
 
@@ -901,7 +965,7 @@ function GraphPage() {
                                     ctx.beginPath();
                                     ctx.moveTo(btnX - 3.5, y);
                                     ctx.lineTo(btnX + 3.5, y);
-                                    ctx.strokeStyle = C_NAVY;
+                                    ctx.strokeStyle = P.navy;
                                     ctx.lineWidth = 1.5;
                                     ctx.stroke();
 
@@ -914,9 +978,9 @@ function GraphPage() {
                                     ctx.arc(btnX, y, btnRadius, 0, 2 * Math.PI);
 
                                     // Visual tint feedback effect if hovering just over this specific button circle
-                                    ctx.fillStyle = isButtonHovered ? 'rgba(0, 169, 157, 0.16)' : '#ffffff';
+                                    ctx.fillStyle = isButtonHovered ? P.nodeBtnHover : P.btnFill;
                                     ctx.fill();
-                                    ctx.strokeStyle = isButtonHovered ? C_TEAL : (isCenter ? C_TEAL : C_NAVY);
+                                    ctx.strokeStyle = isButtonHovered ? P.teal : (isCenter ? P.teal : P.navy);
                                     ctx.lineWidth = 1.5;
                                     ctx.stroke();
 
@@ -924,7 +988,7 @@ function GraphPage() {
                                     ctx.beginPath();
                                     ctx.moveTo(btnX - 3.5, y);
                                     ctx.lineTo(btnX + 3.5, y);
-                                    ctx.strokeStyle = C_NAVY;
+                                    ctx.strokeStyle = P.navy;
                                     ctx.lineWidth = 1.5;
                                     ctx.stroke();
 
@@ -1059,13 +1123,13 @@ function GraphPage() {
                                   const s = getNodeId(link.source);
                                   const t = getNodeId(link.target);
                                   if (hoverNode) {
-                                    if (s === hoverNode || t === hoverNode) return C_TEAL;
-                                    return 'rgba(100, 116, 139, 0.18)';
+                                    if (s === hoverNode || t === hoverNode) return P.teal;
+                                    return P.linkDim;
                                   }
-                                  return 'rgba(0, 75, 135, 0.22)';
+                                  return P.link;
                                 }}
                                 linkDirectionalArrowLength={4}
-                                linkDirectionalArrowColor={() => 'rgba(0, 75, 135, 0.45)'}
+                                linkDirectionalArrowColor={() => P.arrow}
                                 linkDirectionalArrowRelPos={1}
                             />
                         ) : null}
@@ -1076,21 +1140,21 @@ function GraphPage() {
               </TabsContent>
 
               <TabsContent value="hierarchy" className="graph-tab-content m-0 focus-visible:outline-none focus-visible:ring-0">
-                <Card className="graph-card graph-card--hierarchy rounded-sm shadow-sm border-[#e4ebf2] overflow-hidden bg-white">
-                  <CardHeader className="graph-card-header bg-[#f7fafc] border-b border-[#e4ebf2] p-6">
+                <Card className="graph-card graph-card--hierarchy rounded-sm shadow-sm border-[var(--line)] overflow-hidden bg-[var(--surface)]">
+                  <CardHeader className="graph-card-header bg-[var(--surface-subtle)] border-b border-[var(--line)] p-6">
                     <div className="graph-card-heading flex flex-col gap-2">
-                      <CardTitle className="text-xl font-bold text-[#0d2436] font-heading">{t('hierarchyLayoutTitle', 'Concept Hierarchy')}</CardTitle>
-                      <CardDescription className="text-[#586a7b] text-sm">{t('hierarchyLayoutDesc', 'Browse concept layout hierarchies.')}</CardDescription>
+                      <CardTitle className="text-xl font-bold text-[var(--ink-strong)] font-heading">{t('hierarchyLayoutTitle', 'Concept Hierarchy')}</CardTitle>
+                      <CardDescription className="text-[var(--ink-muted)] text-sm">{t('hierarchyLayoutDesc', 'Browse concept layout hierarchies.')}</CardDescription>
                     </div>
                   </CardHeader>
-                   <CardContent className="graph-hierarchy-content p-0 h-[calc(100vh-200px)] relative bg-linear-to-br from-white via-[#f7fafc] to-[#eef3f8]">
+                   <CardContent className="graph-hierarchy-content p-0 h-[calc(100vh-200px)] relative bg-linear-to-br from-[var(--surface)] via-[var(--surface-subtle)] to-[var(--tint-navy)]">
                     <div className="hierarchy-flow-shell w-full h-full flex flex-col">
                       <div className="hierarchy-flow-legend absolute top-4 left-4 z-10 flex gap-2">
                         {(['broader', 'related', 'narrower'] as const).map((kind) => (
                             <button
                                 key={kind}
                                 type="button"
-                                className={`px-4 py-2 text-sm font-semibold rounded-sm border shadow-sm transition-all ${expandedGroups[kind] ? 'bg-[#eaf1f8] text-[#004b87] border-[#004b87]/30' : 'bg-white text-[#586a7b] border-[#e4ebf2] hover:bg-[#f3f6fa] hover:text-[#14283b]'}`}
+                                className={`px-4 py-2 text-sm font-semibold rounded-sm border shadow-sm transition-all ${expandedGroups[kind] ? 'bg-[var(--tint-navy)] text-[var(--brand-navy)] border-[var(--brand-navy)]/30' : 'bg-[var(--surface)] text-[var(--ink-muted)] border-[var(--line)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]'}`}
                                 onClick={() => toggleHierarchyGroup(kind)}
                             >
                               {kind === 'related' ? t('sharedRelated', 'Shared / Related') : t(`legend${kind}`, kind[0].toUpperCase() + kind.slice(1))}
@@ -1121,12 +1185,12 @@ function GraphPage() {
                                 elementsSelectable={false}
                                 defaultEdgeOptions={{
                                   type: 'smoothstep',
-                                  style: { stroke: 'rgba(0, 75, 135, 0.45)', strokeWidth: 2, opacity: 0.8 },
+                                  style: { stroke: P.arrow, strokeWidth: 2, opacity: 0.8 },
                                 }}
                                 proOptions={{ hideAttribution: true }}
                             />
                         ) : (
-                            <div className="hierarchy-empty-state w-full h-full flex items-center justify-center text-[#7c8ba0]">Preparing view...</div>
+                            <div className="hierarchy-empty-state w-full h-full flex items-center justify-center text-[var(--ink-faint)]">Preparing view...</div>
                         )}
                       </div>
                     </div>
