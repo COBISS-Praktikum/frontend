@@ -46,6 +46,7 @@
   "hierarchyLayoutDesc": "Browse the selected concept with broader terms above, shared/related terms grouped, and narrower terms below.",
   "broader": "Broader",
   "narrower": "Narrower",
+  "related": "Related",
   "totalLinks": "Total Links",
   "noDefinition": "No definition is available for this concept yet.",
   "hierarchy": "Hierarchy",
