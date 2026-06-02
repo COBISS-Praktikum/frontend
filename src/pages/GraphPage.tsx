@@ -1,4 +1,4 @@
-import {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
@@ -7,13 +7,13 @@ import type { TFunction } from 'i18next';
 import * as d3 from 'd3-force';
 import ForceGraph2D, { type ForceGraphMethods, type NodeObject } from 'react-force-graph-2d';
 import { Badge } from '@/components/ui/badge.tsx';
-import {Card, CardContent} from '@/components/ui/card.tsx';
+import { Card, CardContent } from '@/components/ui/card.tsx';
 import { Separator } from '@/components/ui/separator.tsx';
 import { Skeleton } from '@/components/ui/skeleton.tsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.tsx';
 import { Footer } from '@/components/layout/Footer.tsx';
 import { SEO } from '@/components/layout/SEO.tsx';
-import {cn, stripLanguageTag} from '@/lib/utils.ts';
+import { cn, stripLanguageTag } from '@/lib/utils.ts';
 import { useTheme } from '@/hooks/useTheme.ts';
 import { useConceptDefinition, useConceptScopeNote, type ResolvedTextState } from '@/hooks/useConceptDefinition.ts';
 import './GraphPage.css';
@@ -142,6 +142,17 @@ const CANVAS_PALETTE: Record<'light' | 'dark', CanvasPalette> = {
 };
 
 const EMPTY_CONCEPT_NODES: ConceptNode[] = [];
+
+// Helper for deterministic pseudo-random layout generation without breaking React purity
+function getPseudoRandom(seed: string): number {
+  let h = 0xdeadbeef;
+  for (let i = 0; i < seed.length; i++) {
+    h = Math.imul(h ^ seed.charCodeAt(i), 2654435761);
+  }
+  h = Math.imul(h ^ (h >>> 16), 2246822507);
+  h ^= h >>> 13;
+  return (h >>> 0) / 4294967296;
+}
 
 function getConceptLabel(item: ConceptNode, lang: string) {
   if (lang === 'sl') {
@@ -296,9 +307,14 @@ interface HierarchyNodePopoverProps {
 function HierarchyNodePopover({
   label, isExpanded, anchorRect, containerRef, onToggleExpand, onNavigate, onClose, t,
 }: HierarchyNodePopoverProps) {
-  const containerRect = containerRef.current?.getBoundingClientRect();
-  const top = anchorRect.bottom - (containerRect?.top ?? 0) + 6;
-  const left = anchorRect.left - (containerRect?.left ?? 0);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  useLayoutEffect(() => {
+    const containerRect = containerRef.current?.getBoundingClientRect();
+    const top = anchorRect.bottom - (containerRect?.top ?? 0) + 6;
+    const left = anchorRect.left - (containerRect?.left ?? 0);
+    setPos({ top, left });
+  }, [anchorRect, containerRef]);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -312,7 +328,7 @@ function HierarchyNodePopover({
       <div
           data-hierarchy-popover
           className="absolute z-30 bg-white border border-[#e4ebf2] shadow-xl rounded-sm p-1.5 flex flex-col gap-0.5 w-52 animate-in fade-in zoom-in-95 duration-100 select-none"
-          style={{ top: `${top}px`, left: `${Math.max(4, left)}px`, maxWidth: "calc(100vw - 8px)" }}
+          style={{ top: `${pos.top}px`, left: `${Math.max(4, pos.left)}px`, maxWidth: "calc(100vw - 8px)" }}
           onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#7c8ba0] border-b border-[#f3f6fa] mb-1 truncate">
@@ -640,7 +656,7 @@ function GraphPage() {
   const [hoverNode, setHoverNode] = useState<string | null>(null);
 
   // ─── Node position cache: persists x/y across graph data changes ─────
-  const nodePositionCache = useRef<Map<string, { x: number; y: number }>>(new Map());
+  const [nodePositionCache] = useState(() => new Map<string, { x: number; y: number }>());
 
   const hierarchyCurrentRef = useRef<HTMLDivElement | null>(null);
 
@@ -753,8 +769,8 @@ function GraphPage() {
 
   // ─── Clear position cache when navigating to a new concept ───────────
   useEffect(() => {
-    nodePositionCache.current = new Map();
-  }, [decodedUri]);
+    nodePositionCache.clear();
+  }, [decodedUri, nodePositionCache]);
 
   const activeTab = searchParams.get('tab') === 'hierarchy' ? 'hierarchy' : 'graph';
 
@@ -781,8 +797,8 @@ function GraphPage() {
     // ─── Cluster helper — preserves or seeds position ─────────────────
     const addCategoryCluster = (parentUri: string, kind: 'broader' | 'narrower' | 'related') => {
       const clusterId = `cluster:${kind}:${parentUri}`;
-      const cached = nodePositionCache.current.get(clusterId);
-      const parentCached = nodePositionCache.current.get(parentUri);
+      const cached = nodePositionCache.get(clusterId);
+      const parentCached = nodePositionCache.get(parentUri);
       nodes.push({
         id: clusterId,
         name: kind === 'broader'
@@ -794,8 +810,8 @@ function GraphPage() {
         isCluster: true,
         clusterKind: kind,
         // Restore exact position if known; otherwise scatter near parent
-        x: cached?.x ?? (parentCached ? parentCached.x + (Math.random() - 0.5) * 80 : undefined),
-        y: cached?.y ?? (parentCached ? parentCached.y + (Math.random() - 0.5) * 80 : undefined),
+        x: cached?.x ?? (parentCached ? parentCached.x + (getPseudoRandom(clusterId + 'x') - 0.5) * 80 : undefined),
+        y: cached?.y ?? (parentCached ? parentCached.y + (getPseudoRandom(clusterId + 'y') - 0.5) * 80 : undefined),
         // Pin existing cluster pills so the +/- labels don't drift on reheat
         fx: cached?.x,
         fy: cached?.y,
@@ -811,15 +827,15 @@ function GraphPage() {
         seedNear?: { x: number; y: number },
     ) => {
       if (addedNodes.has(item.uri)) return addedNodes.get(item.uri)!;
-      const cached = nodePositionCache.current.get(item.uri);
+      const cached = nodePositionCache.get(item.uri);
       const nodeObj: GraphNode = {
         id: item.uri,
         name: getConceptLabel(item, searchLanguage).toUpperCase(),
         uri: item.uri,
         isExpanded: isCenter ? true : neighborhoodCache.has(item.uri),
         // Restore exact position if known; otherwise scatter near the cluster seed
-        x: cached?.x ?? (seedNear ? seedNear.x + (Math.random() - 0.5) * 60 : undefined),
-        y: cached?.y ?? (seedNear ? seedNear.y + (Math.random() - 0.5) * 60 : undefined),
+        x: cached?.x ?? (seedNear ? seedNear.x + (getPseudoRandom(item.uri + 'x') - 0.5) * 60 : undefined),
+        y: cached?.y ?? (seedNear ? seedNear.y + (getPseudoRandom(item.uri + 'y') - 0.5) * 60 : undefined),
         // PIN existing nodes in place. On reheat the simulation only moves
         // brand-new (un-cached) nodes; everything already placed stays put,
         // so adding/removing siblings never reshuffles the layout.
@@ -846,7 +862,7 @@ function GraphPage() {
       if (!group.items || group.items.length === 0) return;
       const clusterId = addCategoryCluster(concept.uri, group.kind);
       // Seed child nodes near their cluster position
-      const clusterSeed = nodePositionCache.current.get(clusterId) ?? { x: 0, y: 0 };
+      const clusterSeed = nodePositionCache.get(clusterId) ?? { x: 0, y: 0 };
       if (!collapsedCategories.has(clusterId)) {
         group.items.forEach((item) => {
           getOrAddConceptNode(item, false, clusterSeed);
@@ -875,8 +891,8 @@ function GraphPage() {
         if (targetUris.length === 0) return;
         const clusterId = addCategoryCluster(originUri, kind);
         // Seed near cluster, falling back to the origin node position
-        const clusterSeed = nodePositionCache.current.get(clusterId)
-            ?? nodePositionCache.current.get(originUri)
+        const clusterSeed = nodePositionCache.get(clusterId)
+            ?? nodePositionCache.get(originUri)
             ?? { x: 0, y: 0 };
         if (!collapsedCategories.has(clusterId)) {
           targetUris.forEach((targetUri) => {
@@ -891,7 +907,7 @@ function GraphPage() {
     });
 
     return { nodes, links };
-  }, [data, hiddenCategories, searchLanguage, neighborhoodCache, collapsedCategories, t]);
+  }, [data, hiddenCategories, searchLanguage, neighborhoodCache, collapsedCategories, t, nodePositionCache]);
 
   // ─── Continuously cache live node positions (every simulation tick) ──
   // CRITICAL: the graphData memo reads nodePositionCache *synchronously during
@@ -903,16 +919,19 @@ function GraphPage() {
   // by the time the memo recomputes. For pinned nodes fx/fy is authoritative
   // (covers user drags); fall back to x/y otherwise.
   const liveNodesRef = useRef(graphData.nodes);
-  liveNodesRef.current = graphData.nodes;
+  useLayoutEffect(() => {
+    liveNodesRef.current = graphData.nodes;
+  }, [graphData.nodes]);
+  
   const handleEngineTick = useCallback(() => {
     liveNodesRef.current.forEach((n) => {
       const px = n.fx ?? n.x;
       const py = n.fy ?? n.y;
       if (px !== undefined && py !== undefined) {
-        nodePositionCache.current.set(n.id, { x: px, y: py });
+        nodePositionCache.set(n.id, { x: px, y: py });
       }
     });
-  }, []);
+  }, [nodePositionCache]);
 
   // ─── Forces helper ────────────────────────────────────────────────────
   const applyForces = useCallback(() => {
