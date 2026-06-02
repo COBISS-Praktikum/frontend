@@ -51,15 +51,14 @@
     --color-cobiss-teal: var(--cobiss-teal);
     --color-cobiss-teal-strong: var(--cobiss-teal-strong);
 
-    /* Squarer corners read more institutional / less "bubbly AI".
-       Flattened scale: nothing reads as a pill, everything stays crisp. */
-    --radius-sm: calc(var(--radius) * 0.5);
-    --radius-md: calc(var(--radius) * 0.75);
+    /* Squarer corners read more institutional / less "bubbly AI" */
+    --radius-sm: calc(var(--radius) * 0.55);
+    --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
-    --radius-xl: calc(var(--radius) * 1.15);
-    --radius-2xl: calc(var(--radius) * 1.3);
-    --radius-3xl: calc(var(--radius) * 1.5);
-    --radius-4xl: calc(var(--radius) * 1.75);
+    --radius-xl: calc(var(--radius) * 1.35);
+    --radius-2xl: calc(var(--radius) * 1.7);
+    --radius-3xl: calc(var(--radius) * 2.1);
+    --radius-4xl: calc(var(--radius) * 2.5);
 }
 
 :root {
@@ -92,7 +91,7 @@
     --border: #dce4ec;
     --input: #d4dee8;
     --ring: #004b87;
-    --radius: 0.25rem;
+    --radius: 0.55rem;
 
     --chart-1: #004b87;
     --chart-2: #00a99d;
@@ -108,12 +107,36 @@
     --sidebar-accent-foreground: #004b87;
     --sidebar-border: #dce4ec;
     --sidebar-ring: #004b87;
+
+    /* ── Themeable surface / ink / line / brand layer ──────────────
+       The components reference these (via bg-[var(--surface)] etc.) so
+       a single .dark override below flips the whole UI coherently. */
+    --surface: #ffffff;          /* cards, bars, elevated panels */
+    --surface-muted: #f3f6fa;    /* insets, toolbars, skeletons  */
+    --surface-subtle: #f7fafc;   /* faint panels                 */
+    --tint-navy: #eaf1f8;        /* navy chip / accent tint      */
+    --tint-navy-strong: #dde9f5;
+    --tint-teal: #e3f5f3;        /* teal chip / accent tint      */
+    --tint-teal-soft: #f3f9f8;
+    --ink: #14283b;              /* primary body text            */
+    --ink-strong: #0d2436;       /* headings                     */
+    --ink-soft: #33485c;
+    --ink-muted: #586a7b;
+    --ink-faint: #7c8ba0;
+    --ink-faint-2: #9aa8ba;
+    --line: #e4ebf2;             /* hairline borders             */
+    --line-strong: #cdd9e5;
+    --line-hover: #b9c8d8;
+    --brand-navy: #004b87;       /* navy used as fg/border/mark  */
+    --brand-navy-mid: #0070c0;
+    --brand-teal: #00a99d;
+    --brand-teal-strong: #008c82;
+    --danger: #c0392b;
 }
 
 .dark {
     /* A genuine COBISS dark mode, kept on-brand (navy base, teal accent)
-       rather than the previous neon-on-black look. Optional — the app
-       defaults to light. */
+       rather than the previous neon-on-black look. */
     --cobiss-text: #e7eef5;
     --background: #0c1a28;
     --foreground: #e7eef5;
@@ -121,26 +144,49 @@
     --card-foreground: #e7eef5;
     --popover: #11243a;
     --popover-foreground: #e7eef5;
-    --primary: #2f9fd8;
+    --primary: #4aa3e0;
     --primary-foreground: #06121e;
-    --secondary: #00a99d;
+    --secondary: #1fc3b4;
     --secondary-foreground: #06121e;
-    --muted: #18304a;
-    --muted-foreground: #9bb1c6;
+    --muted: #16304a;
+    --muted-foreground: #9fb1c4;
     --accent: #173451;
     --accent-foreground: #cfe2f3;
-    --destructive: #e0604f;
+    --destructive: #f06b5b;
     --border: rgba(255, 255, 255, 0.1);
     --input: rgba(255, 255, 255, 0.14);
-    --ring: #2f9fd8;
+    --ring: #4aa3e0;
     --sidebar: #0f2236;
     --sidebar-foreground: #e7eef5;
-    --sidebar-primary: #2f9fd8;
+    --sidebar-primary: #4aa3e0;
     --sidebar-primary-foreground: #06121e;
     --sidebar-accent: #173451;
     --sidebar-accent-foreground: #cfe2f3;
     --sidebar-border: rgba(255, 255, 255, 0.1);
-    --sidebar-ring: #2f9fd8;
+    --sidebar-ring: #4aa3e0;
+
+    /* Dark overrides for the themeable layer */
+    --surface: #11243a;
+    --surface-muted: #0f2236;
+    --surface-subtle: #102942;
+    --tint-navy: #173451;
+    --tint-navy-strong: #1d4063;
+    --tint-teal: #0e3d39;
+    --tint-teal-soft: #103330;
+    --ink: #e7eef5;
+    --ink-strong: #f4f8fc;
+    --ink-soft: #cbd8e5;
+    --ink-muted: #9fb1c4;
+    --ink-faint: #8296aa;
+    --ink-faint-2: #6f8498;
+    --line: rgba(255, 255, 255, 0.10);
+    --line-strong: rgba(255, 255, 255, 0.16);
+    --line-hover: rgba(255, 255, 255, 0.26);
+    --brand-navy: #4aa3e0;
+    --brand-navy-mid: #6cb8ec;
+    --brand-teal: #1fc3b4;
+    --brand-teal-strong: #2fd0c2;
+    --danger: #f06b5b;
 }
 
 @layer base {
@@ -160,7 +206,7 @@
     letter-spacing: -0.01em;
   }
   ::selection {
-    background: color-mix(in srgb, var(--cobiss-teal) 22%, transparent);
-    color: var(--cobiss-navy-strong);
+    background: color-mix(in srgb, var(--cobiss-teal) 24%, transparent);
+    color: var(--foreground);
   }
 }
