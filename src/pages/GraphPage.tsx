@@ -464,6 +464,33 @@ const GET_NEIGHBORHOOD = gql`
   }
 `;
 
+// ─── CategoryButton declared outside render ────────────────────────────────
+interface CategoryButtonProps {
+  kind: 'broader' | 'narrower' | 'related';
+  count: number;
+  label: string;
+  hiddenCategories: Set<'broader' | 'narrower' | 'related'>;
+  toggleCategory: (category: 'broader' | 'narrower' | 'related') => void;
+}
+
+function CategoryButton({ kind, count, label, hiddenCategories, toggleCategory }: CategoryButtonProps) {
+  const isHidden = hiddenCategories.has(kind);
+  return (
+      <button
+          onClick={() => toggleCategory(kind)}
+          className={cn(
+              "graph-metric flex flex-col p-2 rounded-sm flex-1 text-center transition-all border",
+              isHidden
+                  ? "bg-[var(--surface-muted)] opacity-50 grayscale border-transparent"
+                  : "bg-[var(--surface-muted)] border-[var(--line)] cursor-pointer hover:border-[var(--brand-navy)]"
+          )}
+      >
+        <span className="text-[10px] uppercase font-bold text-[var(--ink-faint)]">{label}</span>
+        <strong className="text-lg text-[var(--brand-navy)]">{count}</strong>
+      </button>
+  );
+}
+
 interface DefinitionOverlayProps {
   concept: Concept;
   translatedTitle: string;
@@ -498,24 +525,6 @@ function DefinitionOverlay({ concept, translatedTitle, relatedCount, broaderCoun
       </span>
       ) : null;
 
-  const CategoryButton = ({ kind, count, label }: { kind: 'broader' | 'narrower' | 'related', count: number, label: string }) => {
-    const isHidden = hiddenCategories.has(kind);
-    return (
-        <button
-            onClick={() => toggleCategory(kind)}
-            className={cn(
-                "graph-metric flex flex-col p-2 rounded-sm flex-1 text-center transition-all border",
-                isHidden
-                    ? "bg-[var(--surface-muted)] opacity-50 grayscale border-transparent"
-                    : "bg-[var(--surface-muted)] border-[var(--line)] cursor-pointer hover:border-[var(--brand-navy)]"
-            )}
-        >
-          <span className="text-[10px] uppercase font-bold text-[var(--ink-faint)]">{label}</span>
-          <strong className="text-lg text-[var(--brand-navy)]">{count}</strong>
-        </button>
-    );
-  };
-
   return (
       <div className="graph-overlay absolute top-4 left-4 z-10 w-72 bg-[var(--surface)]/95 backdrop-blur-sm border border-[var(--line)] shadow-lg shadow-[var(--brand-navy)]/5 p-5 rounded-sm flex flex-col gap-3 pointer-events-auto">
         <h3 className="text-lg font-bold leading-tight text-[var(--ink)] font-heading pointer-events-none">{translatedTitle}</h3>
@@ -538,9 +547,9 @@ function DefinitionOverlay({ concept, translatedTitle, relatedCount, broaderCoun
         <Separator className="graph-overlay-separator my-2 pointer-events-none" />
 
         <div className="graph-metrics flex justify-between gap-2" aria-label="Concept relation summary">
-          <CategoryButton kind="broader" count={broaderCount} label={t('broader', 'Broader')} />
-          <CategoryButton kind="narrower" count={narrowerCount} label={t('narrower', 'Narrower')} />
-          <CategoryButton kind="related" count={relatedCount} label={t('related', 'Related')} />
+          <CategoryButton kind="broader" count={broaderCount} label={t('broader', 'Broader')} hiddenCategories={hiddenCategories} toggleCategory={toggleCategory} />
+          <CategoryButton kind="narrower" count={narrowerCount} label={t('narrower', 'Narrower')} hiddenCategories={hiddenCategories} toggleCategory={toggleCategory} />
+          <CategoryButton kind="related" count={relatedCount} label={t('related', 'Related')} hiddenCategories={hiddenCategories} toggleCategory={toggleCategory} />
 
           <div className="graph-metric flex flex-col bg-[var(--tint-navy)] border border-[var(--brand-navy)]/15 p-2 rounded-sm flex-1 text-center pointer-events-none">
             <span className="text-[10px] uppercase font-bold text-[var(--ink-faint)]">{t('totalLinks', 'Total Links')}</span>
@@ -687,9 +696,12 @@ function GraphPage() {
     setTimeout(() => setNeighborhoodCache(defaultOpenCache), 0);
   }, [decodedUri]);
 
+  // Fix: wrap synchronous setState calls in setTimeout to avoid cascading renders
   useEffect(() => {
-    setPopoverNode(null);
-    setPopoverPos(null);
+    setTimeout(() => {
+      setPopoverNode(null);
+      setPopoverPos(null);
+    }, 0);
   }, [decodedUri, searchParams]);
 
   const activeTab = searchParams.get('tab') === 'hierarchy' ? 'hierarchy' : 'graph';
@@ -833,7 +845,7 @@ function GraphPage() {
     });
 
     return { nodes, links };
-  }, [data, hiddenCategories, searchLanguage, neighborhoodCache, collapsedCategories]);
+  }, [data, hiddenCategories, searchLanguage, neighborhoodCache, collapsedCategories, t]);
 
   // 1. One‑time force initialisation + initial zoom (runs when viewport size changes)
   useEffect(() => {
@@ -853,7 +865,7 @@ function GraphPage() {
   useEffect(() => {
     if (activeTab !== 'graph' || !fgRef.current) return;
     fgRef.current.d3ReheatSimulation();
-  }, [graphData]);   // runs when nodes/links change
+  }, [activeTab, graphData]);   // runs when nodes/links change
 
   const concept = data?.concept;
   const canonicalUrl = typeof window !== 'undefined' && uri ? `${window.location.origin}/frontend/graph/${uri}` : undefined;
@@ -903,8 +915,11 @@ function GraphPage() {
     return () => cancelAnimationFrame(rafId);
   }, [activeTab, hierarchyFlow.nodes.length, hierarchyViewportSize.height, hierarchyViewportSize.width]);
 
+  // Fix: wrap synchronous setState call in setTimeout to avoid cascading renders
   useEffect(() => {
-    setCollapsedCategories(new Set());
+    setTimeout(() => {
+      setCollapsedCategories(new Set());
+    }, 0);
   }, [decodedUri]);
 
   if (loading && !concept) {
