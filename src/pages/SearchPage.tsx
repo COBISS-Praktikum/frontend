@@ -63,10 +63,10 @@ function SearchPage() {
   const canonicalUrl = typeof window !== 'undefined' ? `${window.location.origin}/frontend/` : undefined;
   const trendingConcepts = useMemo(
     () => [
-      { label: t('trendingConcept1Label', 'Artificial Intelligence'), query: 'umetna inteligenca' },
-      { label: t('trendingConcept2Label', 'Blockchain'), query: 'blockchain' },
-      { label: t('trendingConcept3Label', 'Quantum Computing'), query: 'kvantno' },
-      { label: t('trendingConcept4Label', 'Climate Change'), query: 'podnebne' },
+      { label: t('trendingConcept1Label', 'Artificial Intelligence'), query: t('trendingConcept1Label', 'Artificial Intelligence') },
+      { label: t('trendingConcept2Label', 'Blockchain'), query: t('trendingConcept2Label', 'Blockchain') },
+      { label: t('trendingConcept3Label', 'Quantum Computing'), query: t('trendingConcept3Label', 'Quantum Computing') },
+      { label: t('trendingConcept4Label', 'Climate Change'), query: t('trendingConcept4Label', 'Climate Change') },
     ],
     [t],
   );
