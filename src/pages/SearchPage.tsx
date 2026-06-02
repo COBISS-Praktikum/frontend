@@ -36,8 +36,8 @@ interface SearchConceptsResponse {
   searchConcepts: ConceptSearchResult[];
 }
 const SEARCH_CONCEPTS = gql`
-  query SearchConcepts($text: String!, $limit: Int!) {
-    searchConcepts(text: $text, limit: $limit) {
+  query SearchConcepts($text: String!, $limit: Int!, $lang: String!) {
+    searchConcepts(text: $text, limit: $limit, lang: $lang) {
       uri
       prefLabel
       prefLabelSl
@@ -104,7 +104,7 @@ function SearchPage() {
         recordRequest();
         try {
           const { data } = await searchConcepts({
-            variables: { text: query, limit: 10 },
+            variables: { text: query, limit: 10, lang: searchLanguage },
             context: { headers: { 'Accept-Language': searchLanguage } },
           });
           if (active && data?.searchConcepts) {
