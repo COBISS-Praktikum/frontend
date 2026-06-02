@@ -29,3 +29,102 @@
   background-color: #f0f0f0;
 }
 
+
+/* ── Hierarchy tree ──────────────────────────────────────────────────────── */
+/* Append these rules to GraphPage.css                                        */
+
+.hierarchy-tree {
+  max-width: 660px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* node card */
+.hierarchy-tree-node-card { width: 100%; }
+.hierarchy-tree-node-card:focus-visible {
+  outline: 2px solid var(--brand-navy);
+  outline-offset: 2px;
+}
+
+/* ── spine: broader ancestors stacked above the current term ── */
+.hierarchy-tree-spine { display: flex; flex-direction: column; }
+
+.hierarchy-tree-spine-row { position: relative; padding-top: 24px; }
+.hierarchy-tree-spine-row:first-child { padding-top: 0; }
+
+/* vertical connector between ancestor rows */
+.hierarchy-tree-spine-row:not(:first-child)::before {
+  content: '';
+  position: absolute;
+  left: 32px;          /* icon centre = p-4 (16px) + w-8/2 (16px) */
+  top: 0;
+  height: 24px;
+  width: 1.5px;
+  background: var(--line);
+}
+
+/* ── children rail: narrower + related hang off the current term ── */
+.hierarchy-tree-children {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 32px;   /* left rail under the current-term icon */
+  position: relative;
+}
+
+.hierarchy-tree-child {
+  position: relative;
+  padding: 12px 0 12px 28px;
+}
+
+/* vertical rail running the full height of each child row */
+.hierarchy-tree-child::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 1.5px;
+  background: var(--line);
+}
+
+/* stop the rail after the last child's elbow */
+.hierarchy-tree-child:last-child::before {
+  bottom: auto;
+  height: 44px;          /* p-4 top (16px) + icon centre (16px) + a bit extra */
+}
+
+/* horizontal elbow into the card */
+.hierarchy-tree-child::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 44px;             /* same as above */
+  width: 28px;
+  height: 1.5px;
+  background: var(--line);
+}
+
+/* related / shared get a teal-tinted connector */
+.hierarchy-tree-child--related::before,
+.hierarchy-tree-child--related::after {
+  background: var(--brand-teal);
+  opacity: 0.5;
+}
+
+/* teal chip override for related relation badge */
+.hierarchy-tree-relation--related {
+  background: var(--tint-teal) !important;
+  color: var(--brand-teal-strong) !important;
+  border-color: color-mix(in srgb, var(--brand-teal) 25%, transparent) !important;
+}
+
+/* nicer scrollbar */
+.hierarchy-tree-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+.hierarchy-tree-scroll::-webkit-scrollbar { width: 8px; }
+.hierarchy-tree-scroll::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 4px;
+}
