@@ -126,7 +126,9 @@ function SearchPage() {
 
   // Reset selected index when suggestions change
   useEffect(() => {
-    setSelectedIndex(-1);
+    setTimeout(() => {
+      setSelectedIndex(-1);
+    }, 0);
   }, [suggestions, searchQuery]);
 
   // Scroll active suggestion into view
