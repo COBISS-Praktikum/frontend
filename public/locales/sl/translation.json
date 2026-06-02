@@ -81,5 +81,15 @@
   "seoGraphDescription": "Raziščite semantična razmerja, širše izraze in ožje koncepte za {{conceptName}} v sistemu COBISS SGC.",
   "seoGraphKeywords": "SGC Navigator, COBISS, razmerja med koncepti, širši izrazi, ožji koncepti, semantični graf",
   "graphErrorPrefix": "Napaka:",
-  "noConceptFound": "Koncept ni bil najden."
+  "noConceptFound": "Koncept ni bil najden.",
+  "clusterBroader": "Širši",
+  "clusterNarrower": "Ožji",
+  "clusterRelated": "Sorodni",
+  "openSelectedTerm": "Odpri izbrani izraz",
+  "openBroaderTerm": "Odpri širši izraz",
+  "openNarrowerTerm": "Odpri ožji izraz",
+  "openRelatedTerm": "Odpri sorodni izraz",
+  "preparingView": "Priprava pogleda...",
+  "expandConnections": "Razširi povezave",
+  "viewConceptPage": "Prikaži stran pojma"
 }

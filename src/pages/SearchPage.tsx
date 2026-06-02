@@ -36,8 +36,8 @@ interface SearchConceptsResponse {
   searchConcepts: ConceptSearchResult[];
 }
 const SEARCH_CONCEPTS = gql`
-  query SearchConcepts($text: String!, $limit: Int!) {
-    searchConcepts(text: $text, limit: $limit) {
+  query SearchConcepts($text: String!, $limit: Int!, $lang: String!) {
+    searchConcepts(text: $text, limit: $limit, lang: $lang) {
       uri
       prefLabel
       prefLabelSl
@@ -45,11 +45,15 @@ const SEARCH_CONCEPTS = gql`
     }
   }
 `;
+
+
 function SearchPage() {
   const { t, i18n } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const [suggestions, setSuggestions] = useState<ConceptSearchResult[]>([]);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const listRef = useRef<HTMLUListElement>(null);
   const navigate = useNavigate();
   const [searchConcepts, { loading, error }] = useLazyQuery<SearchConceptsResponse>(SEARCH_CONCEPTS);
   const { checkRateLimit, recordRequest } = useRateLimit();
@@ -62,7 +66,7 @@ function SearchPage() {
       { label: t('trendingConcept1Label', 'Artificial Intelligence'), query: 'umetna inteligenca' },
       { label: t('trendingConcept2Label', 'Blockchain'), query: 'blockchain' },
       { label: t('trendingConcept3Label', 'Quantum Computing'), query: 'kvantno' },
-      { label: t('trendingConcept4Label', 'Climate Change'), query: 'podnebje' },
+      { label: t('trendingConcept4Label', 'Climate Change'), query: 'podnebne' },
     ],
     [t],
   );
@@ -100,7 +104,7 @@ function SearchPage() {
         recordRequest();
         try {
           const { data } = await searchConcepts({
-            variables: { text: query, limit: 10 },
+            variables: { text: query, limit: 10, lang: searchLanguage },
             context: { headers: { 'Accept-Language': searchLanguage } },
           });
           if (active && data?.searchConcepts) {
@@ -119,6 +123,22 @@ function SearchPage() {
       window.clearTimeout(timeoutId);
     };
   }, [searchConcepts, searchLanguage, searchQuery, checkRateLimit, recordRequest]);
+
+  // Reset selected index when suggestions change
+  useEffect(() => {
+    setSelectedIndex(-1);
+  }, [suggestions, searchQuery]);
+
+  // Scroll active suggestion into view
+  useEffect(() => {
+    if (selectedIndex >= 0 && listRef.current) {
+      const activeItem = listRef.current.children[selectedIndex] as HTMLElement;
+      if (activeItem) {
+        activeItem.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [selectedIndex]);
+
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
   };
@@ -129,6 +149,27 @@ function SearchPage() {
   const handleSuggestionClick = (uri: string) => {
     navigate(`/frontend/graph/${encodeURIComponent(uri)}`);
   };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (suggestions.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault(); // Prevents cursor from moving in the input
+      setSelectedIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : prev));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedIndex((prev) => (prev > 0 ? prev - 1 : -1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
+        handleSuggestionClick(suggestions[selectedIndex].uri);
+      } else if (suggestions.length > 0) {
+        // Optional: If they press enter without selecting, default to the first one
+        handleSuggestionClick(suggestions[0].uri);
+      }
+    }
+  };
+
   return (
     <div className="relative min-h-screen w-full bg-background text-foreground overflow-hidden font-sans">
       <SEO
@@ -162,14 +203,15 @@ function SearchPage() {
               <Search className="w-5 h-5" />
             </div>
             <Input
-              ref={inputRef}
-              type="text"
-              placeholder={t('searchPlaceholder', 'Search for concepts, taxonomies...')}
-              value={searchQuery}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
-              onChange={handleSearchChange}
-              className="flex-1 border-0 bg-transparent text-lg h-12 text-[var(--ink)] placeholder:text-[var(--ink-faint-2)] focus-visible:ring-0 focus-visible:ring-offset-0"
+                ref={inputRef}
+                type="text"
+                placeholder={t('searchPlaceholder', 'Search for concepts, taxonomies...')}
+                value={searchQuery}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                onChange={handleSearchChange}
+                onKeyDown={handleKeyDown} // <--- Add this line
+                className="flex-1 border-0 bg-transparent text-lg h-12 text-[var(--ink)] placeholder:text-[var(--ink-faint-2)] focus-visible:ring-0 focus-visible:ring-offset-0"
             />
             <div className="hidden sm:flex items-center space-x-1 pr-3 text-[var(--ink-faint-2)]">
               <kbd className="px-2 py-1 bg-[var(--surface-muted)] rounded-sm text-xs font-medium border border-[var(--line)] flex items-center space-x-1">
@@ -190,21 +232,47 @@ function SearchPage() {
                 )}
                 {error && <p className="p-4 text-[var(--danger)] text-sm">{t('searchErrorPrefix', 'Error:')} {error.message}</p>}
                 {suggestions.length > 0 && (
-                  <ul className="max-h-87.5 overflow-y-auto w-full py-2 custom-scrollbar">
-                    {suggestions.map((concept) => (
-                      <li
-                        key={concept.uri}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          handleSuggestionClick(concept.uri);
-                        }}
-                        className="px-5 py-3 cursor-pointer hover:bg-[var(--tint-navy)] flex items-center group transition-colors border-l-2 border-transparent hover:border-[var(--brand-teal)]"
-                      >
-                        <Network className="w-4 h-4 mr-3 text-[var(--ink-faint-2)] group-hover:text-[var(--brand-teal)] transition-colors" />
-                        <span className="font-medium text-[var(--ink-soft)] group-hover:text-[var(--brand-navy)]">{getSuggestionLabel(concept)}</span>
-                      </li>
-                    ))}
-                  </ul>
+                    <ul ref={listRef} className="max-h-87.5 overflow-y-auto w-full py-2 custom-scrollbar">
+                        {suggestions.map((concept, index) => {
+                            const isActive = index === selectedIndex;
+
+                            return (
+                                <li
+                                    key={concept.uri}
+                                    onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        handleSuggestionClick(concept.uri);
+                                    }}
+                                    onMouseEnter={() => setSelectedIndex(index)}
+                                    className={cn(
+                                        "px-5 py-3 cursor-pointer flex items-center group transition-colors border-l-2",
+                                        isActive
+                                            ? "bg-[var(--tint-navy)] border-[var(--brand-teal)]"
+                                            : "border-transparent hover:bg-[var(--tint-navy)] hover:border-[var(--brand-teal)]"
+                                    )}
+                                >
+                                    <Network
+                                        className={cn(
+                                            "w-4 h-4 mr-3 transition-colors",
+                                            isActive
+                                                ? "text-[var(--brand-teal)]"
+                                                : "text-[var(--ink-faint-2)] group-hover:text-[var(--brand-teal)]"
+                                        )}
+                                    />
+                                    <span
+                                        className={cn(
+                                            "font-medium",
+                                            isActive
+                                                ? "text-[var(--brand-navy)]"
+                                                : "text-[var(--ink-soft)] group-hover:text-[var(--brand-navy)]"
+                                        )}
+                                    >
+          {getSuggestionLabel(concept)}
+        </span>
+                                </li>
+                            );
+                        })}
+                    </ul>
                 )}
               </div>
             </div>
