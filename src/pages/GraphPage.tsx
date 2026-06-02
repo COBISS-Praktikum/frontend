@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
@@ -8,13 +8,13 @@ import * as d3 from 'd3-force';
 import ForceGraph2D, { type ForceGraphMethods, type NodeObject } from 'react-force-graph-2d';
 import { Handle, Position, ReactFlow, type Edge, type Node, type NodeProps } from '@xyflow/react';
 import { Badge } from '@/components/ui/badge.tsx';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card.tsx';
+import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card.tsx';
 import { Separator } from '@/components/ui/separator.tsx';
 import { Skeleton } from '@/components/ui/skeleton.tsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.tsx';
 import { Footer } from '@/components/layout/Footer.tsx';
 import { SEO } from '@/components/layout/SEO.tsx';
-import { stripLanguageTag } from '@/lib/utils.ts';
+import {cn, stripLanguageTag} from '@/lib/utils.ts';
 import { useConceptDefinition } from '@/hooks/useConceptDefinition.ts';
 import { useTheme } from '@/hooks/useTheme.ts';
 import '@xyflow/react/dist/style.css';
@@ -59,6 +59,8 @@ interface GraphNode {
   isCluster?: boolean;
   clusterKind?: 'broader' | 'narrower' | 'related';
   isExpanded?: boolean;
+  fx?: number;
+  fy?: number;
 }
 
 interface GraphLink {
@@ -71,9 +73,6 @@ interface GraphData {
   links: GraphLink[];
 }
 
-// ─── COBISS canvas palette (theme-aware) ────────────────────────────────────
-// The force-graph canvas is painted in JS, so it can't read CSS variables the
-// way the DOM does — we keep two explicit palettes and pick one by theme.
 type CanvasPalette = {
   bg: string;
   navy: string;
@@ -150,7 +149,6 @@ function getConceptLabel(item: ConceptNode, lang: string) {
   return stripLanguageTag(item.prefLabelEn ?? item.prefLabelSl ?? item.prefLabel) || item.uri;
 }
 
-// Helper to safely resolve a node's ID regardless of D3 object mutation
 function getNodeId(nodeRef: string | GraphNode | NodeObject<GraphNode> | undefined | null): string {
   if (!nodeRef) return '';
   if (typeof nodeRef === 'string') return nodeRef;
@@ -191,7 +189,6 @@ function getHierarchyNodeSize(kind: HierarchyNodeKind, label: string, relationCo
   };
 }
 
-// Internal helper types for strongly-typed hitbox access (avoid using `any`)
 interface PlusHitbox {
   x: number;
   y: number;
@@ -250,22 +247,24 @@ function buildHierarchyLayout(nodes: HierarchyFlowNode[], edges: HierarchyFlowEd
 }
 
 const HierarchyConceptNode = memo(function HierarchyConceptNode({ data }: NodeProps<HierarchyFlowNode>) {
+  const { t } = useTranslation();
+
   const label = stripLanguageTag(data.label);
+
   const relationLabel =
       data.kind === 'root'
-          ? 'Open selected term'
+          ? t('openSelectedTerm', 'Open selected term')
           : data.kind === 'broader'
-              ? 'Open broader term'
+              ? t('openBroaderTerm', 'Open broader term')
               : data.kind === 'narrower'
-                  ? 'Open narrower term'
-                  : 'Open related term';
+                  ? t('openNarrowerTerm', 'Open narrower term')
+                  : t('openRelatedTerm', 'Open related term');
+
   const relationChips = data.kind === 'root' ? [] : data.relations.map((relation) => relation);
   const ariaLabel = `${relationLabel} ${label}`;
 
   return (
-      <div
-          className={`hierarchy-flow-node hierarchy-flow-node--${data.kind}`}
-      >
+      <div className={`hierarchy-flow-node hierarchy-flow-node--${data.kind}`}>
         {data.kind === 'root' ? null : (
             <Handle type="target" position={Position.Left} className="hierarchy-flow-handle hierarchy-flow-handle--target" />
         )}
@@ -419,7 +418,6 @@ function dedupeConceptNodes(items?: ConceptNode[]) {
   });
 }
 
-// ─── GraphQL queries ──────────────────────────────────────────────────────────
 const GET_CONCEPT = gql`
   query GetConcept($uri: String!) {
     concept(uri: $uri) {
@@ -474,9 +472,11 @@ interface DefinitionOverlayProps {
   relatedCount: number;
   lang: string;
   t: TFunction;
+  hiddenCategories: Set<'broader' | 'narrower' | 'related'>;
+  toggleCategory: (category: 'broader' | 'narrower' | 'related') => void;
 }
 
-function DefinitionOverlay({ concept, translatedTitle, relatedCount, broaderCount, narrowerCount, lang, t }: DefinitionOverlayProps) {
+function DefinitionOverlay({ concept, translatedTitle, relatedCount, broaderCount, narrowerCount, lang, hiddenCategories, toggleCategory, t }: DefinitionOverlayProps) {
   const defState = useConceptDefinition({
     lang,
     definition: concept.definition,
@@ -498,11 +498,29 @@ function DefinitionOverlay({ concept, translatedTitle, relatedCount, broaderCoun
       </span>
       ) : null;
 
-  return (
-      <div className="graph-overlay absolute top-4 left-4 z-10 w-72 bg-[var(--surface)]/95 backdrop-blur-sm border border-[var(--line)] shadow-lg shadow-[var(--brand-navy)]/5 p-5 rounded-sm flex flex-col gap-3 pointer-events-none">
-        <h3 className="text-lg font-bold leading-tight text-[var(--ink)] font-heading">{translatedTitle}</h3>
+  const CategoryButton = ({ kind, count, label }: { kind: 'broader' | 'narrower' | 'related', count: number, label: string }) => {
+    const isHidden = hiddenCategories.has(kind);
+    return (
+        <button
+            onClick={() => toggleCategory(kind)}
+            className={cn(
+                "graph-metric flex flex-col p-2 rounded-sm flex-1 text-center transition-all border",
+                isHidden
+                    ? "bg-[var(--surface-muted)] opacity-50 grayscale border-transparent"
+                    : "bg-[var(--surface-muted)] border-[var(--line)] cursor-pointer hover:border-[var(--brand-navy)]"
+            )}
+        >
+          <span className="text-[10px] uppercase font-bold text-[var(--ink-faint)]">{label}</span>
+          <strong className="text-lg text-[var(--brand-navy)]">{count}</strong>
+        </button>
+    );
+  };
 
-        <div className="graph-overlay-definition text-sm text-[var(--ink-muted)] leading-relaxed">
+  return (
+      <div className="graph-overlay absolute top-4 left-4 z-10 w-72 bg-[var(--surface)]/95 backdrop-blur-sm border border-[var(--line)] shadow-lg shadow-[var(--brand-navy)]/5 p-5 rounded-sm flex flex-col gap-3 pointer-events-auto">
+        <h3 className="text-lg font-bold leading-tight text-[var(--ink)] font-heading pointer-events-none">{translatedTitle}</h3>
+
+        <div className="graph-overlay-definition text-sm text-[var(--ink-muted)] leading-relaxed pointer-events-none">
           {defState.status === 'loading' ? (
               <div className="flex flex-col gap-1.5" aria-label={t('loadingDefinition', 'Loading definition…')}>
                 <Skeleton className="h-3 w-full rounded bg-[var(--surface-muted)]" />
@@ -517,22 +535,14 @@ function DefinitionOverlay({ concept, translatedTitle, relatedCount, broaderCoun
           ) : null}
         </div>
 
-        <Separator className="graph-overlay-separator my-2" />
+        <Separator className="graph-overlay-separator my-2 pointer-events-none" />
 
         <div className="graph-metrics flex justify-between gap-2" aria-label="Concept relation summary">
-          <div className="graph-metric flex flex-col bg-[var(--surface-muted)] border border-[var(--line)] p-2 rounded-sm flex-1 text-center">
-            <span className="text-[10px] uppercase font-bold text-[var(--ink-faint)]">{t('broader', 'Broader')}</span>
-            <strong className="text-lg text-[var(--brand-navy)]">{broaderCount}</strong>
-          </div>
-          <div className="graph-metric flex flex-col bg-[var(--surface-muted)] border border-[var(--line)] p-2 rounded-sm flex-1 text-center">
-            <span className="text-[10px] uppercase font-bold text-[var(--ink-faint)]">{t('narrower', 'Narrower')}</span>
-            <strong className="text-lg text-[var(--brand-navy)]">{narrowerCount}</strong>
-          </div>
-          <div className="graph-metric flex flex-col bg-[var(--surface-muted)] border border-[var(--line)] p-2 rounded-sm flex-1 min-w-[60px] text-center">
-            <span className="text-[10px] uppercase font-bold text-[var(--ink-faint)]">{t('related', 'Related')}</span>
-            <strong className="text-lg text-[var(--brand-navy)]">{relatedCount}</strong>
-          </div>
-          <div className="graph-metric flex flex-col bg-[var(--tint-navy)] border border-[var(--brand-navy)]/15 p-2 rounded-sm flex-1 text-center">
+          <CategoryButton kind="broader" count={broaderCount} label={t('broader', 'Broader')} />
+          <CategoryButton kind="narrower" count={narrowerCount} label={t('narrower', 'Narrower')} />
+          <CategoryButton kind="related" count={relatedCount} label={t('related', 'Related')} />
+
+          <div className="graph-metric flex flex-col bg-[var(--tint-navy)] border border-[var(--brand-navy)]/15 p-2 rounded-sm flex-1 text-center pointer-events-none">
             <span className="text-[10px] uppercase font-bold text-[var(--ink-faint)]">{t('totalLinks', 'Total Links')}</span>
             <strong className="text-lg text-[var(--brand-teal-strong)]">{broaderCount + relatedCount + narrowerCount}</strong>
           </div>
@@ -548,9 +558,11 @@ function GraphPage() {
   const selectedLanguage = i18n.resolvedLanguage ?? i18n.language ?? 'en';
   const searchLanguage = selectedLanguage.toLowerCase().startsWith('sl') ? 'sl' : 'en';
   const [hoveringButtonOfNode, setHoveringButtonOfNode] = useState<string | null>(null);
+  const [hiddenCategories, setHiddenCategories] = useState<Set<'broader' | 'narrower' | 'related'>>(new Set());
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
 
-
-
+  const [popoverNode, setPopoverNode] = useState<GraphNode | null>(null);
+  const [popoverPos, setPopoverPos] = useState<{ x: number; y: number } | null>(null);
 
   const { uri } = useParams<{ uri: string }>();
   const navigate = useNavigate();
@@ -569,27 +581,88 @@ function GraphPage() {
     narrower: false,
   });
 
-  // Modern state tracking replacing explicit useApolloClient calls
+  const toggleCategory = (category: 'broader' | 'narrower' | 'related') => {
+    setHiddenCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(category)) next.delete(category);
+      else next.add(category);
+      return next;
+    });
+  };
+
   const [targetNeighborhoodUri, setTargetNeighborhoodUri] = useState<string>('');
   const [neighborhoodCache, setNeighborhoodCache] = useState<Map<string, { nodes: ConceptNode[]; edges: ConceptEdge[] }>>(new Map());
 
   const decodedUri = useMemo(() => decodeURIComponent(uri || ''), [uri]);
 
-  // Main concept data query
   const { loading, error, data } = useQuery<GetConceptResponse>(GET_CONCEPT, {
     variables: { uri: decodedUri },
   });
 
-  // Dynamic Query Hook specifically pulling context changes for dynamic node selection
   const { data: neighborhoodData } = useQuery<NeighborhoodResponse>(GET_NEIGHBORHOOD, {
     variables: { uri: targetNeighborhoodUri },
     skip: !targetNeighborhoodUri,
   });
 
-  // Capture incoming network responses to construct interactive extensions reactively
+  // ─── CASCADE PRUNING REACHABILITY ENGINE ───────────────────────────────────
+  const pruneOrphanedCache = useCallback((
+      currentCache: Map<string, { nodes: ConceptNode[]; edges: ConceptEdge[] }>,
+      rootUri: string
+  ) => {
+    if (!data?.concept) return currentCache;
+    const updated = new Map(currentCache);
+    const adj = new Map<string, Set<string>>();
+
+    // 1. Map core root relations
+    const rootNeighbors = new Set<string>();
+    if (!hiddenCategories.has('broader')) data.concept.broader?.forEach(n => rootNeighbors.add(n.uri));
+    if (!hiddenCategories.has('narrower')) data.concept.narrower?.forEach(n => rootNeighbors.add(n.uri));
+    if (!hiddenCategories.has('related')) data.concept.related?.forEach(n => rootNeighbors.add(n.uri));
+    adj.set(rootUri, rootNeighbors);
+
+    // 2. Map all active connections inside cache
+    updated.forEach((cacheValue, originUri) => {
+      const neighbors = adj.get(originUri) ?? new Set<string>();
+      cacheValue.edges.forEach(edge => {
+        if (edge.sourceUri === originUri) {
+          neighbors.add(edge.targetUri);
+        }
+      });
+      adj.set(originUri, neighbors);
+    });
+
+    // 3. BFS Traversal from root core to trace valid paths
+    const visited = new Set<string>([rootUri]);
+    const queue = [rootUri];
+
+    while (queue.length > 0) {
+      const curr = queue.shift()!;
+      const neighbors = adj.get(curr);
+      if (neighbors) {
+        for (const next of neighbors) {
+          if (!visited.has(next)) {
+            visited.add(next);
+            // Deep continue traversal only if this node remains explicitly expanded
+            if (updated.has(next)) {
+              queue.push(next);
+            }
+          }
+        }
+      }
+    }
+
+    // 4. Garbage collection: Prune expanded subtrees missing alternative valid paths
+    updated.forEach((_, key) => {
+      if (!visited.has(key)) {
+        updated.delete(key);
+      }
+    });
+
+    return updated;
+  }, [data, hiddenCategories]);
+
   useEffect(() => {
     if (neighborhoodData?.conceptNeighborhood && neighborhoodData?.conceptNeighborhoodEdges && targetNeighborhoodUri) {
-      // Defer state updates to avoid calling setState synchronously inside the effect
       setTimeout(() => {
         setNeighborhoodCache((prev) => {
           const updated = new Map(prev);
@@ -604,11 +677,20 @@ function GraphPage() {
     }
   }, [neighborhoodData, targetNeighborhoodUri]);
 
-  // Reset local cluster expansion logs whenever the global center URI changes
   useEffect(() => {
-    // Reset cache asynchronously to satisfy react-hooks/set-state-in-effect rule
-    setTimeout(() => setNeighborhoodCache(new Map()), 0);
+    // Clear old states and seed the root categories as open by default
+    const defaultOpenCache = new Map();
+    defaultOpenCache.set(`root:expanded:broader`, { nodes: [], edges: [] });
+    defaultOpenCache.set(`root:expanded:narrower`, { nodes: [], edges: [] });
+    defaultOpenCache.set(`root:expanded:related`, { nodes: [], edges: [] });
+
+    setTimeout(() => setNeighborhoodCache(defaultOpenCache), 0);
   }, [decodedUri]);
+
+  useEffect(() => {
+    setPopoverNode(null);
+    setPopoverPos(null);
+  }, [decodedUri, searchParams]);
 
   const activeTab = searchParams.get('tab') === 'hierarchy' ? 'hierarchy' : 'graph';
 
@@ -636,28 +718,6 @@ function GraphPage() {
     return () => resizeObserver.disconnect();
   }, [hierarchyViewportElement]);
 
-  // Handle graph force bindings on initial mounts safely
-  useEffect(() => {
-    if (activeTab !== 'graph' || !fgRef.current) return;
-
-    const fg = fgRef.current;
-    fg.d3Force('charge')?.strength(-650);
-    fg.d3Force('link')?.distance(110);
-    fg.d3Force('collide', d3.forceCollide().radius(45).iterations(3));
-    fg.d3Force('center', d3.forceCenter());
-
-    const timer = setTimeout(() => {
-      try {
-        fgRef.current?.zoomToFit(400, 70, () => true);
-      } catch {
-        void 0;
-      }
-    }, 150);
-
-    return () => clearTimeout(timer);
-  }, [data, activeTab, viewportSize, neighborhoodCache]);
-
-  // ─── GRAPH DATA MAPPING (Matches your Sketch completely) ───
   const graphData = useMemo<GraphData>(() => {
     if (!data?.concept) return { nodes: [], links: [] };
 
@@ -665,7 +725,6 @@ function GraphPage() {
     const nodes: GraphNode[] = [];
     const links: GraphLink[] = [];
 
-    // Helper map to deduplicate physical concept nodes across the interface
     const addedNodes = new Map<string, GraphNode>();
 
     const getOrAddConceptNode = (item: ConceptNode, isCenter = false) => {
@@ -683,18 +742,21 @@ function GraphPage() {
       return nodeObj;
     };
 
-    // 1. Core Focus Root Node
     getOrAddConceptNode(concept, true);
+    const rootNode = addedNodes.get(concept.uri)!;
+    rootNode.x = 0;
+    rootNode.y = 0;
+    rootNode.fx = 0;
+    rootNode.fy = 0;
 
-    // Helper to generate localized structural labels
     const getClusterLabel = (kind: 'broader' | 'narrower' | 'related') => {
-      if (searchLanguage === 'sl') {
-        return kind === 'broader' ? ' Širši' : kind === 'narrower' ? ' Ožji' : ' Sorodni';
-      }
-      return kind === 'broader' ? ' Broader' : kind === 'narrower' ? ' Narrower' : ' Related';
+      return kind === 'broader'
+          ? ` ${t('clusterBroader', 'Broader')}`
+          : kind === 'narrower'
+              ? ` ${t('clusterNarrower', 'Narrower')}`
+              : ` ${t('clusterRelated', 'Related')}`;
     };
 
-    // Helper to spin up isolated row sorting points scoped precisely to an individual parent
     const addCategoryCluster = (parentUri: string, kind: 'broader' | 'narrower' | 'related') => {
       const clusterId = `cluster:${kind}:${parentUri}`;
       nodes.push({
@@ -708,7 +770,6 @@ function GraphPage() {
       return clusterId;
     };
 
-    // 2. Map structural root categories
     const rootGroups = [
       { kind: 'broader' as const, items: concept.broader },
       { kind: 'narrower' as const, items: concept.narrower },
@@ -716,22 +777,27 @@ function GraphPage() {
     ];
 
     rootGroups.forEach((group) => {
+      if (hiddenCategories.has(group.kind)) return;
       if (!group.items || group.items.length === 0) return;
+
       const clusterId = addCategoryCluster(concept.uri, group.kind);
-      group.items.forEach((item) => {
-        getOrAddConceptNode(item);
-        links.push({ source: clusterId, target: item.uri });
-      });
+
+      // Only render the children if this specific cluster path isn't collapsed
+      if (!collapsedCategories.has(clusterId)) {
+        group.items.forEach((item) => {
+          getOrAddConceptNode(item);
+          links.push({ source: clusterId, target: item.uri });
+        });
+      }
     });
 
-    // 3. Process dynamic cascading neighborhood expansions reactively
     neighborhoodCache.forEach((cacheValue, originUri) => {
-      const { nodes: neighborNodes, edges: neighborEdges } = cacheValue;
+      // If the parent node isn't in the graph (e.g. its parent cluster is collapsed), skip
+      if (!addedNodes.has(originUri)) return;
 
-      // Group neighbor nodes by their URIs for rapid structural indexing
+      const { nodes: neighborNodes, edges: neighborEdges } = cacheValue;
       const neighborMap = new Map(neighborNodes.map(n => [n.uri, n]));
 
-      // Categorize target instances via fetched relationship types
       const sortedByKind: Record<'broader' | 'narrower' | 'related', string[]> = {
         broader: [],
         narrower: [],
@@ -739,7 +805,6 @@ function GraphPage() {
       };
 
       neighborEdges.forEach((edge) => {
-        // Ensure we only process relationships expanding outward from our current clicked origin node
         if (edge.sourceUri === originUri) {
           const kind = edge.relationType.toLowerCase();
           if (kind === 'broader' || kind === 'narrower' || kind === 'related') {
@@ -748,26 +813,47 @@ function GraphPage() {
         }
       });
 
-      // Construct unique subcategories out from the origin node
       (['broader', 'narrower', 'related'] as const).forEach((kind) => {
         const targetUris = sortedByKind[kind];
         if (targetUris.length === 0) return;
 
         const clusterId = addCategoryCluster(originUri, kind);
 
-        targetUris.forEach((targetUri) => {
-          const rawItem = neighborMap.get(targetUri);
-          if (rawItem) {
-            getOrAddConceptNode(rawItem);
-            // Connect structural cluster node to the final target concept node
-            links.push({ source: clusterId, target: targetUri });
-          }
-        });
+        // Only render the children if this cluster path isn't collapsed
+        if (!collapsedCategories.has(clusterId)) {
+          targetUris.forEach((targetUri) => {
+            const rawItem = neighborMap.get(targetUri);
+            if (rawItem) {
+              getOrAddConceptNode(rawItem);
+              links.push({ source: clusterId, target: targetUri });
+            }
+          });
+        }
       });
     });
 
     return { nodes, links };
-  }, [data, searchLanguage, neighborhoodCache]);
+  }, [data, hiddenCategories, searchLanguage, neighborhoodCache, collapsedCategories]);
+
+  // 1. One‑time force initialisation + initial zoom (runs when viewport size changes)
+  useEffect(() => {
+    if (activeTab !== 'graph' || !fgRef.current || viewportSize.width === 0) return;
+    const fg = fgRef.current;
+    fg.d3Force('charge')?.strength(-650);
+    fg.d3Force('link')?.distance(110);
+    fg.d3Force('collide', d3.forceCollide().radius(45).iterations(3));
+
+    const timer = setTimeout(() => {
+      try { fgRef.current?.zoomToFit(400, 70, () => true); } catch { void 0; }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [activeTab, viewportSize.width, viewportSize.height]);   // no dependency on neighbourhood data
+
+// 2. After graph data changes (expand/collapse), just re‑heat the simulation
+  useEffect(() => {
+    if (activeTab !== 'graph' || !fgRef.current) return;
+    fgRef.current.d3ReheatSimulation();
+  }, [graphData]);   // runs when nodes/links change
 
   const concept = data?.concept;
   const canonicalUrl = typeof window !== 'undefined' && uri ? `${window.location.origin}/frontend/graph/${uri}` : undefined;
@@ -797,10 +883,6 @@ function GraphPage() {
     setSearchParams(nextParams, { replace: true });
   }, [searchParams, setSearchParams]);
 
-  /*const handleConceptClick = useCallback((targetUri: string, tab: 'graph' | 'hierarchy') => {
-    navigate(buildConceptUrl(targetUri, tab));
-  }, [buildConceptUrl, navigate]);*/
-
   const handleHierarchyConceptClick = useCallback((targetUri: string) => {
     navigate(buildConceptUrl(targetUri, 'hierarchy'));
   }, [buildConceptUrl, navigate]);
@@ -821,6 +903,10 @@ function GraphPage() {
     return () => cancelAnimationFrame(rafId);
   }, [activeTab, hierarchyFlow.nodes.length, hierarchyViewportSize.height, hierarchyViewportSize.width]);
 
+  useEffect(() => {
+    setCollapsedCategories(new Set());
+  }, [decodedUri]);
+
   if (loading && !concept) {
     return (
         <div className="graph-page w-full min-h-[calc(100vh-3rem)] bg-background flex items-center justify-center">
@@ -837,7 +923,7 @@ function GraphPage() {
       <>
         <SEO title={seoTitle} description={seoDescription} keywords={seoKeywords} canonicalUrl={canonicalUrl} />
         <div className="graph-page w-full min-h-[calc(100vh-3rem)] bg-linear-to-b from-[var(--surface)] to-[var(--surface-muted)]">
-           <section className="graph-shell mx-auto p-4 md:p-6 lg:p-8 flex flex-col gap-6">
+          <section className="graph-shell mx-auto p-4 md:p-6 lg:p-8 flex flex-col gap-6">
             <Tabs value={activeTab} onValueChange={handleTabChange} className="graph-tabs w-full flex flex-col gap-4">
               <div className="graph-toolbar flex flex-col md:flex-row justify-between items-start md:items-end gap-6 bg-[var(--surface)] border border-[var(--line)] shadow-sm p-6 rounded-sm">
                 <div className="graph-title-block flex flex-col gap-2">
@@ -854,9 +940,19 @@ function GraphPage() {
 
               <TabsContent value="graph" className="graph-tab-content m-0 focus-visible:outline-none focus-visible:ring-0">
                 <Card className="graph-card rounded-sm shadow-sm border-[var(--line)] overflow-hidden bg-[var(--surface)]">
-                   <CardContent className="graph-card-content p-0 m-0 w-full h-[calc(100vh-200px)] relative">
+                  <CardContent className="graph-card-content p-0 m-0 w-full h-[calc(100vh-200px)] relative">
                     <div className="graph-stage w-full h-full flex flex-row">
-                      <DefinitionOverlay concept={concept} relatedCount={relatedCount} translatedTitle={translatedTitle} broaderCount={broaderCount} narrowerCount={narrowerCount} lang={searchLanguage} t={t} />
+                      <DefinitionOverlay
+                          concept={concept}
+                          relatedCount={relatedCount}
+                          translatedTitle={translatedTitle}
+                          broaderCount={broaderCount}
+                          narrowerCount={narrowerCount}
+                          lang={searchLanguage}
+                          t={t}
+                          hiddenCategories={hiddenCategories}
+                          toggleCategory={toggleCategory}
+                      />
 
                       <div ref={setGraphViewportElement} className="graph-viewport w-full h-full bg-[var(--surface)] relative flex-1 cursor-grab active:cursor-grabbing">
                         {viewportSize.width > 0 && viewportSize.height > 0 ? (
@@ -869,23 +965,19 @@ function GraphPage() {
                                 warmupTicks={40}
                                 cooldownTicks={120}
 
-                                // 1. CANVAS OBJECT RENDERING WITH TINT EFFECT
                                 nodeCanvasObject={(node: NodeObject<GraphNode>, ctx) => {
                                   const isCenter = node.uri === concept.uri;
                                   const isCluster = !!node.isCluster;
                                   const isHovered = node.uri === hoverNode || node.id === hoverNode;
-                                  // Check if this exact button target area is currently hovered
                                   const isButtonHovered = hoveringButtonOfNode === node.id || hoveringButtonOfNode === node.uri;
 
                                   const x = node.x ?? 0;
                                   const y = node.y ?? 0;
 
-                                  // Typography
                                   const fontSize = isCenter ? 12 : 10;
                                   ctx.font = `${(isCenter || isHovered) ? 'bold ' : '500 '}${fontSize}px Inter, sans-serif`;
                                   const textWidth = ctx.measureText(node.name).width;
 
-                                  // Pill dimensions
                                   const padX = 14;
                                   const padY = 8;
                                   const w = textWidth + padX * 2;
@@ -897,7 +989,6 @@ function GraphPage() {
 
                                   ctx.save();
 
-                                  // Dim un-focused paths
                                   if (hoverNode && node.uri !== hoverNode && node.id !== hoverNode) {
                                     const related = graphData.links.some(l => {
                                       const s = getNodeId(l.source);
@@ -907,13 +998,11 @@ function GraphPage() {
                                     if (!related && node.uri !== concept.uri) ctx.globalAlpha = 0.3;
                                   }
 
-                                  // Dynamic box shadows
                                   if (isHovered || isCenter) {
                                     ctx.shadowColor = isCenter ? P.shadowCenter : P.shadowNode;
                                     ctx.shadowBlur = 12;
                                   }
 
-                                  // Primary Theme Colors
                                   ctx.fillStyle = isCenter
                                       ? P.teal
                                       : isCluster
@@ -922,7 +1011,6 @@ function GraphPage() {
                                               ? P.navyHover
                                               : P.navy;
 
-                                  // Draw node text body capsule
                                   ctx.beginPath();
                                   if (ctx.roundRect) {
                                     ctx.roundRect(x - w / 2, y - h / 2, w, h, radius);
@@ -941,33 +1029,40 @@ function GraphPage() {
                                           : P.nodeStroke;
                                   ctx.stroke();
 
-                                  // Label text
                                   ctx.fillStyle = isCluster ? P.clusterText : P.nodeText;
                                   ctx.textAlign = 'center';
                                   ctx.textBaseline = 'middle';
                                   ctx.fillText(node.name, isCluster ? x + 12 : x, y);
 
-                                  // Plus / Minus Button Settings
                                   const btnRadius = 9;
                                   if (isCluster) {
                                     const btnX = x - w / 2 + 16;
                                     ctx.beginPath();
                                     ctx.arc(btnX, y, btnRadius, 0, 2 * Math.PI);
 
-                                    // Visual tint feedback effect if hovering just over this specific button circle
                                     ctx.fillStyle = isButtonHovered ? P.clusterBtnHover : P.btnFill;
                                     ctx.fill();
                                     ctx.strokeStyle = isButtonHovered ? P.teal : P.navy;
                                     ctx.lineWidth = 1.5;
                                     ctx.stroke();
 
-                                    // Minus glyph (collapse)
+                                    // Horizontal line (Minus part)
                                     ctx.beginPath();
                                     ctx.moveTo(btnX - 3.5, y);
                                     ctx.lineTo(btnX + 3.5, y);
                                     ctx.strokeStyle = P.navy;
                                     ctx.lineWidth = 1.5;
                                     ctx.stroke();
+
+                                    // Dynamic Vertical line: Only draw if it's currently collapsed to form a Plus symbol!
+                                    if (collapsedCategories.has(node.id)) {
+                                      ctx.beginPath();
+                                      ctx.moveTo(btnX, y - 3.5);
+                                      ctx.lineTo(btnX, y + 3.5);
+                                      ctx.strokeStyle = P.navy;
+                                      ctx.lineWidth = 1.5;
+                                      ctx.stroke();
+                                    }
 
                                     (node as unknown as HitboxHolder)._plusHitbox = { x: btnX, y, r: btnRadius, isCluster: true };
                                   } else {
@@ -977,14 +1072,12 @@ function GraphPage() {
                                     ctx.beginPath();
                                     ctx.arc(btnX, y, btnRadius, 0, 2 * Math.PI);
 
-                                    // Visual tint feedback effect if hovering just over this specific button circle
                                     ctx.fillStyle = isButtonHovered ? P.nodeBtnHover : P.btnFill;
                                     ctx.fill();
                                     ctx.strokeStyle = isButtonHovered ? P.teal : (isCenter ? P.teal : P.navy);
                                     ctx.lineWidth = 1.5;
                                     ctx.stroke();
 
-                                    // Horizontal stroke of the +/- glyph
                                     ctx.beginPath();
                                     ctx.moveTo(btnX - 3.5, y);
                                     ctx.lineTo(btnX + 3.5, y);
@@ -1005,57 +1098,68 @@ function GraphPage() {
                                   ctx.restore();
                                 }}
 
-                                // 2. UPDATED CLICK LOGIC: BOTH CAPSULE & BUTTON INVOKE NEIGHBORS CODE NOW
                                 onNodeClick={(node: GraphNode, event: MouseEvent) => {
+                                  const hitbox = (node as unknown as HitboxHolder)._plusHitbox;
+
+                                  // 1. Handle Click Events on ANY Cluster Node (Ožji, Širši, Sorodni)
                                   if (node.isCluster) {
-                                    const hitbox = (node as unknown as HitboxHolder)._plusHitbox;
-                                    if (hitbox && fgRef.current) {
-                                      const graphCoords = fgRef.current.screen2GraphCoords(event.clientX, event.clientY);
-                                      const distance = Math.hypot(graphCoords.x - hitbox.x, graphCoords.y - hitbox.y);
+                                    const clusterId = node.id; // e.g. "cluster:broader:http://..."
+                                    const prefixEnd = clusterId.indexOf(':', 8);
+                                    const parentUri = prefixEnd !== -1 ? clusterId.slice(prefixEnd + 1) : '';
 
-                                      if (distance <= (hitbox.r + 5)) {
-                                        // Deconstruct parent context from the dynamic cluster id: cluster:{kind}:{parentUri}
-                                        const parts = node.id.split(':');
-                                        if (parts.length >= 3) {
-                                          const parentUri = parts.slice(2).join(':');
-
-                                          setNeighborhoodCache((prev) => {
-                                            const updated = new Map(prev);
-                                            // If collapsing a primary root category, clean matching items
-                                            if (parentUri === concept.uri) {
-                                              const itemsToRemove = node.clusterKind === 'broader' ? concept.broader
-                                                  : node.clusterKind === 'narrower' ? concept.narrower
-                                                      : concept.related;
-                                              itemsToRemove?.forEach(item => updated.delete(item.uri));
-                                            } else {
-                                              // Collapsing an inner nested tree element
-                                              updated.delete(parentUri);
-                                            }
-                                            return updated;
-                                          });
-                                        }
+                                    // Toggle collapse state for this cluster
+                                    setCollapsedCategories((prev) => {
+                                      const next = new Set(prev);
+                                      if (next.has(clusterId)) {
+                                        next.delete(clusterId); // expand
+                                      } else {
+                                        next.add(clusterId);    // collapse
                                       }
+                                      return next;
+                                    });
+
+                                    // If expanding and the parent's neighbourhood hasn't been fetched yet, trigger fetch
+                                    if (!collapsedCategories.has(clusterId) && parentUri !== concept.uri && !neighborhoodCache.has(parentUri)) {
+                                      setTargetNeighborhoodUri(parentUri);
                                     }
                                     return;
                                   }
 
-                                  // CHANGED EFFECT HERE: Primary node clicks and button clicks now invoke neighborhood code
-                                  if (node.uri === concept.uri) return; // Core center focus node doesn't change
+                                  // 2. Handle Click Events on Little +/- Circle Buttons of REGULAR Concept Nodes
+                                  if (hitbox && fgRef.current) {
+                                    const graphCoords = fgRef.current.screen2GraphCoords(event.clientX, event.clientY);
+                                    const distance = Math.hypot(graphCoords.x - hitbox.x, graphCoords.y - hitbox.y);
 
-                                  if (node.isExpanded) {
-                                    // Collapse node path out of the neighborhood view state cache
-                                    setNeighborhoodCache((prev) => {
-                                      const updated = new Map(prev);
-                                      updated.delete(node.uri);
-                                      return updated;
+                                    if (distance <= (hitbox.r + 5)) {
+                                      if (node.uri === concept.uri) return;
+
+                                      const isCurrentlyExpanded = neighborhoodCache.has(node.uri);
+                                      if (isCurrentlyExpanded) {
+                                        setNeighborhoodCache((prev) => {
+                                          const updated = new Map(prev);
+                                          updated.delete(node.uri);
+                                          return pruneOrphanedCache(updated, concept.uri);
+                                        });
+                                      } else {
+                                        setTargetNeighborhoodUri(node.uri);
+                                      }
+                                      return; // Cut circuit
+                                    }
+                                  }
+
+                                  // 3. Handle Regular Text Clicks on Concept Nodes (Shows Popover Menu)
+                                  if (node.uri === concept.uri) return;
+
+                                  if (fgRef.current && node.x !== undefined && node.y !== undefined) {
+                                    const screenCoords = fgRef.current.graph2ScreenCoords(node.x, node.y);
+                                    setPopoverPos({
+                                      x: screenCoords.x,
+                                      y: screenCoords.y
                                     });
-                                  } else {
-                                    // Request / Expand neighbors code hook
-                                    setTargetNeighborhoodUri(node.uri);
+                                    setPopoverNode(node);
                                   }
                                 }}
 
-                                // 3. Footprint mapping matching the oversized boundary boxes
                                 nodePointerAreaPaint={(node: NodeObject<GraphNode>, color: string, ctx: CanvasRenderingContext2D) => {
                                   const x = node.x ?? 0;
                                   const y = node.y ?? 0;
@@ -1073,7 +1177,7 @@ function GraphPage() {
                                   }
                                   ctx.fill();
 
-                                    const hitbox = (node as unknown as HitboxHolder)._plusHitbox;
+                                  const hitbox = (node as unknown as HitboxHolder)._plusHitbox;
                                   if (hitbox) {
                                     ctx.beginPath();
                                     ctx.arc(hitbox.x, hitbox.y, 16, 0, 2 * Math.PI);
@@ -1081,26 +1185,26 @@ function GraphPage() {
                                   }
                                 }}
 
-                                // 4. CAPTURING DYNAMIC BUTTON POSITIONING FOR EXCLUSIVE HOVER TINTRULE HOOKS
                                 onNodeHover={(node: NodeObject<GraphNode> | null) => {
-                                  setHoverNode(node ? node.id : null);
+                                  setTimeout(() => {
+                                    setHoverNode(node ? node.id : null);
+                                  }, 0);
 
-                                   if (!node || !(node as unknown as HitboxHolder)._plusHitbox) {
-                                    setHoveringButtonOfNode(null);
+                                  if (!node || !(node as unknown as HitboxHolder)._plusHitbox) {
+                                    setTimeout(() => {
+                                      setHoveringButtonOfNode(null);
+                                    }, 0);
                                     return;
                                   }
 
-                                  // Attach a temporary listener over the viewport wrapper to query relative canvas mouse locations
                                   const wrapper = graphViewportElement;
                                   if (wrapper && fgRef.current) {
                                     const handleMouseMove = (e: MouseEvent) => {
-                                      //const rect = wrapper.getBoundingClientRect();
                                       const graphCoords = fgRef.current!.screen2GraphCoords(e.clientX, e.clientY);
                                       const hitbox = (node as unknown as HitboxHolder)._plusHitbox;
 
                                       if (hitbox) {
                                         const distance = Math.hypot(graphCoords.x - hitbox.x, graphCoords.y - hitbox.y);
-                                        // Mark button as explicitly focused if cursor sits within the 16px footprint
                                         if (distance <= 16) {
                                           setHoveringButtonOfNode(node.id || node.uri);
                                           return;
@@ -1113,7 +1217,28 @@ function GraphPage() {
                                   }
                                 }}
 
-                                // Connection link customization paths
+                                onBackgroundClick={() => {
+                                  setPopoverNode(null);
+                                  setPopoverPos(null);
+                                }}
+                                onZoom={() => {
+                                  if (popoverNode) {
+                                    setTimeout(() => {
+                                      setPopoverNode(null);
+                                      setPopoverPos(null);
+                                    }, 0);
+                                  }
+                                }}
+
+                                onNodeDrag={() => {
+                                  if (popoverNode) {
+                                    setTimeout(() => {
+                                      setPopoverNode(null);
+                                      setPopoverPos(null);
+                                    }, 0);
+                                  }
+                                }}
+
                                 linkWidth={(link) => {
                                   const s = getNodeId(link.source);
                                   const t = getNodeId(link.target);
@@ -1133,6 +1258,58 @@ function GraphPage() {
                                 linkDirectionalArrowRelPos={1}
                             />
                         ) : null}
+
+                        {popoverNode && popoverPos && (
+                            <div
+                                className="absolute z-30 bg-white border border-[#e4ebf2] shadow-xl rounded-sm p-1.5 flex flex-col gap-0.5 w-52 animate-in fade-in zoom-in-95 duration-100 select-none"
+                                style={{
+                                  left: `${popoverPos.x}px`,
+                                  top: `${popoverPos.y - 20}px`,
+                                  transform: 'translate(-50%, -100%)',
+                                }}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#7c8ba0] border-b border-[#f3f6fa] mb-1 truncate">
+                                {popoverNode.name}
+                              </div>
+                              <button
+                                  type="button"
+                                  className="w-full text-left px-2 py-1.5 text-xs font-semibold text-[#14283b] hover:bg-[#f3f6fa] hover:text-[#004b87] rounded-sm transition-colors flex items-center gap-2"
+                                  onClick={() => {
+                                    const isCurrentlyExpanded = neighborhoodCache.has(popoverNode.uri);
+                                    if (isCurrentlyExpanded) {
+                                      setNeighborhoodCache((prev) => {
+                                        const updated = new Map(prev);
+                                        updated.delete(popoverNode.uri);
+                                        return pruneOrphanedCache(updated, concept.uri);
+                                      });
+                                    } else {
+                                      setTargetNeighborhoodUri(popoverNode.uri);
+                                    }
+                                    setPopoverNode(null);
+                                    setPopoverPos(null);
+                                  }}
+                              >
+                                {neighborhoodCache.has(popoverNode.uri) ? (
+                                    <><span>✕</span> {t('collapseConnections', 'Collapse Connections')}</>
+                                ) : (
+                                    <>{t('expandConnections', 'Expand Connections')}</>
+                                )}
+                              </button>
+                              <button
+                                  type="button"
+                                  className="w-full text-left px-2 py-1.5 text-xs font-semibold text-[#14283b] hover:bg-[#f3f6fa] hover:text-[#004b87] rounded-sm transition-colors flex items-center gap-2"
+                                  onClick={() => {
+                                    navigate(buildConceptUrl(popoverNode.uri, 'graph'));
+                                    setPopoverNode(null);
+                                    setPopoverPos(null);
+                                  }}
+                              >
+                                {t('viewConceptPage', 'View Concept Page')}
+                              </button>
+                            </div>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -1147,7 +1324,7 @@ function GraphPage() {
                       <CardDescription className="text-[var(--ink-muted)] text-sm">{t('hierarchyLayoutDesc', 'Browse concept layout hierarchies.')}</CardDescription>
                     </div>
                   </CardHeader>
-                   <CardContent className="graph-hierarchy-content p-0 h-[calc(100vh-200px)] relative bg-linear-to-br from-[var(--surface)] via-[var(--surface-subtle)] to-[var(--tint-navy)]">
+                  <CardContent className="graph-hierarchy-content p-0 h-[calc(100vh-200px)] relative bg-linear-to-br from-[var(--surface)] via-[var(--surface-subtle)] to-[var(--tint-navy)]">
                     <div className="hierarchy-flow-shell w-full h-full flex flex-col">
                       <div className="hierarchy-flow-legend absolute top-4 left-4 z-10 flex gap-2">
                         {(['broader', 'related', 'narrower'] as const).map((kind) => (
@@ -1190,7 +1367,9 @@ function GraphPage() {
                                 proOptions={{ hideAttribution: true }}
                             />
                         ) : (
-                            <div className="hierarchy-empty-state w-full h-full flex items-center justify-center text-[var(--ink-faint)]">Preparing view...</div>
+                            <div className="hierarchy-empty-state w-full h-full flex items-center justify-center text-[var(--ink-faint)]">
+                              {t('preparingView', 'Preparing view...')}
+                            </div>
                         )}
                       </div>
                     </div>
