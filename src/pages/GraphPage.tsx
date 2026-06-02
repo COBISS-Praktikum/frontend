@@ -60,6 +60,8 @@ interface GraphNode {
   isExpanded?: boolean;
   fx?: number;
   fy?: number;
+  _width?: number;
+  _height?: number;
 }
 
 interface GraphLink {
@@ -533,12 +535,10 @@ function HierarchyInfoSections({ concept, lang, t }: {
 }
 
 // ─── MobileInfoPanel ─────────────────────────────────────────────────────────
-// On mobile: collapsible accordion. On md+: always-open sidebar.
 function MobileInfoPanel({ concept, lang, t }: { concept: Concept; lang: string; t: TFunction }) {
   const [open, setOpen] = useState(false);
   return (
       <>
-        {/* Mobile: collapsible header strip */}
         <div className="md:hidden border-b border-[var(--line)] bg-[var(--surface)]">
           <button
               type="button"
@@ -558,7 +558,6 @@ function MobileInfoPanel({ concept, lang, t }: { concept: Concept; lang: string;
               </div>
           )}
         </div>
-        {/* Desktop: always-visible sidebar */}
         <aside className="hidden md:flex md:flex-col hierarchy-info-panel shrink-0 w-72 border-r border-[var(--line)] bg-[var(--surface)]/95 backdrop-blur-sm gap-4 p-6 overflow-y-auto">
           <HierarchyInfoSections concept={concept} lang={lang} t={t} />
         </aside>
@@ -639,6 +638,9 @@ function GraphPage() {
   const [graphViewportElement, setGraphViewportElement] = useState<HTMLDivElement | null>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [hoverNode, setHoverNode] = useState<string | null>(null);
+
+  // ─── Node position cache: persists x/y across graph data changes ─────
+  const nodePositionCache = useRef<Map<string, { x: number; y: number }>>(new Map());
 
   const hierarchyCurrentRef = useRef<HTMLDivElement | null>(null);
 
@@ -749,6 +751,11 @@ function GraphPage() {
     }, 0);
   }, [decodedUri, searchParams]);
 
+  // ─── Clear position cache when navigating to a new concept ───────────
+  useEffect(() => {
+    nodePositionCache.current = new Map();
+  }, [decodedUri]);
+
   const activeTab = searchParams.get('tab') === 'hierarchy' ? 'hierarchy' : 'graph';
 
   useEffect(() => {
@@ -771,13 +778,53 @@ function GraphPage() {
     const links: GraphLink[] = [];
     const addedNodes = new Map<string, GraphNode>();
 
-    const getOrAddConceptNode = (item: ConceptNode, isCenter = false) => {
+    // ─── Cluster helper — preserves or seeds position ─────────────────
+    const addCategoryCluster = (parentUri: string, kind: 'broader' | 'narrower' | 'related') => {
+      const clusterId = `cluster:${kind}:${parentUri}`;
+      const cached = nodePositionCache.current.get(clusterId);
+      const parentCached = nodePositionCache.current.get(parentUri);
+      nodes.push({
+        id: clusterId,
+        name: kind === 'broader'
+            ? ` ${t('clusterBroader', 'Broader')}`
+            : kind === 'narrower'
+                ? ` ${t('clusterNarrower', 'Narrower')}`
+                : ` ${t('clusterRelated', 'Related')}`,
+        uri: clusterId,
+        isCluster: true,
+        clusterKind: kind,
+        // Restore exact position if known; otherwise scatter near parent
+        x: cached?.x ?? (parentCached ? parentCached.x + (Math.random() - 0.5) * 80 : undefined),
+        y: cached?.y ?? (parentCached ? parentCached.y + (Math.random() - 0.5) * 80 : undefined),
+        // Pin existing cluster pills so the +/- labels don't drift on reheat
+        fx: cached?.x,
+        fy: cached?.y,
+      });
+      links.push({ source: parentUri, target: clusterId });
+      return clusterId;
+    };
+
+    // ─── Concept node helper — preserves or seeds position ───────────
+    const getOrAddConceptNode = (
+        item: ConceptNode,
+        isCenter = false,
+        seedNear?: { x: number; y: number },
+    ) => {
       if (addedNodes.has(item.uri)) return addedNodes.get(item.uri)!;
+      const cached = nodePositionCache.current.get(item.uri);
       const nodeObj: GraphNode = {
         id: item.uri,
         name: getConceptLabel(item, searchLanguage).toUpperCase(),
         uri: item.uri,
-        isExpanded: isCenter ? true : neighborhoodCache.has(item.uri)
+        isExpanded: isCenter ? true : neighborhoodCache.has(item.uri),
+        // Restore exact position if known; otherwise scatter near the cluster seed
+        x: cached?.x ?? (seedNear ? seedNear.x + (Math.random() - 0.5) * 60 : undefined),
+        y: cached?.y ?? (seedNear ? seedNear.y + (Math.random() - 0.5) * 60 : undefined),
+        // PIN existing nodes in place. On reheat the simulation only moves
+        // brand-new (un-cached) nodes; everything already placed stays put,
+        // so adding/removing siblings never reshuffles the layout.
+        fx: cached?.x,
+        fy: cached?.y,
       };
       nodes.push(nodeObj);
       addedNodes.set(item.uri, nodeObj);
@@ -787,20 +834,6 @@ function GraphPage() {
     getOrAddConceptNode(concept, true);
     const rootNode = addedNodes.get(concept.uri)!;
     rootNode.x = 0; rootNode.y = 0; rootNode.fx = 0; rootNode.fy = 0;
-
-    const getClusterLabel = (kind: 'broader' | 'narrower' | 'related') =>
-        kind === 'broader'
-            ? ` ${t('clusterBroader', 'Broader')}`
-            : kind === 'narrower'
-                ? ` ${t('clusterNarrower', 'Narrower')}`
-                : ` ${t('clusterRelated', 'Related')}`;
-
-    const addCategoryCluster = (parentUri: string, kind: 'broader' | 'narrower' | 'related') => {
-      const clusterId = `cluster:${kind}:${parentUri}`;
-      nodes.push({ id: clusterId, name: getClusterLabel(kind), uri: clusterId, isCluster: true, clusterKind: kind });
-      links.push({ source: parentUri, target: clusterId });
-      return clusterId;
-    };
 
     const rootGroups = [
       { kind: 'broader' as const, items: concept.broader },
@@ -812,9 +845,11 @@ function GraphPage() {
       if (hiddenCategories.has(group.kind)) return;
       if (!group.items || group.items.length === 0) return;
       const clusterId = addCategoryCluster(concept.uri, group.kind);
+      // Seed child nodes near their cluster position
+      const clusterSeed = nodePositionCache.current.get(clusterId) ?? { x: 0, y: 0 };
       if (!collapsedCategories.has(clusterId)) {
         group.items.forEach((item) => {
-          getOrAddConceptNode(item);
+          getOrAddConceptNode(item, false, clusterSeed);
           links.push({ source: clusterId, target: item.uri });
         });
       }
@@ -839,11 +874,15 @@ function GraphPage() {
         const targetUris = sortedByKind[kind];
         if (targetUris.length === 0) return;
         const clusterId = addCategoryCluster(originUri, kind);
+        // Seed near cluster, falling back to the origin node position
+        const clusterSeed = nodePositionCache.current.get(clusterId)
+            ?? nodePositionCache.current.get(originUri)
+            ?? { x: 0, y: 0 };
         if (!collapsedCategories.has(clusterId)) {
           targetUris.forEach((targetUri) => {
             const rawItem = neighborMap.get(targetUri);
             if (rawItem) {
-              getOrAddConceptNode(rawItem);
+              getOrAddConceptNode(rawItem, false, clusterSeed);
               links.push({ source: clusterId, target: targetUri });
             }
           });
@@ -854,22 +893,79 @@ function GraphPage() {
     return { nodes, links };
   }, [data, hiddenCategories, searchLanguage, neighborhoodCache, collapsedCategories, t]);
 
-  useEffect(() => {
-    if (activeTab !== 'graph' || !fgRef.current || viewportSize.width === 0) return;
+  // ─── Continuously cache live node positions (every simulation tick) ──
+  // CRITICAL: the graphData memo reads nodePositionCache *synchronously during
+  // render* to pin existing nodes. An effect-based snapshot runs only AFTER
+  // commit, so it would always be one step behind — on the very render that
+  // adds/removes nodes the cache would be stale, existing nodes would lose
+  // their fx/fy, and d3 would re-spiral them (the jump). onEngineTick fires
+  // outside React's render cycle on every frame, so the cache is always fresh
+  // by the time the memo recomputes. For pinned nodes fx/fy is authoritative
+  // (covers user drags); fall back to x/y otherwise.
+  const liveNodesRef = useRef(graphData.nodes);
+  liveNodesRef.current = graphData.nodes;
+  const handleEngineTick = useCallback(() => {
+    liveNodesRef.current.forEach((n) => {
+      const px = n.fx ?? n.x;
+      const py = n.fy ?? n.y;
+      if (px !== undefined && py !== undefined) {
+        nodePositionCache.current.set(n.id, { x: px, y: py });
+      }
+    });
+  }, []);
+
+  // ─── Forces helper ────────────────────────────────────────────────────
+  const applyForces = useCallback(() => {
     const fg = fgRef.current;
+    if (!fg) return;
     fg.d3Force('charge')?.strength(-650);
     fg.d3Force('link')?.distance(110);
     fg.d3Force('collide', d3.forceCollide().radius(45).iterations(3));
-    const timer = setTimeout(() => {
-      try { fgRef.current?.zoomToFit(400, 70, () => true); } catch { void 0; }
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [activeTab, viewportSize.width, viewportSize.height]);
+  }, []);
 
+  // ─── One-time zoom-to-fit per load / tab activation ──────────────────
+  // hasZoomedRef gates the onEngineStop zoom so it fits the SETTLED layout
+  // exactly once after a fresh load or tab switch — never on expand/collapse,
+  // which would otherwise re-frame the camera and feel like a jump.
+  const hasZoomedRef = useRef(false);
+
+  // Reset the zoom gate whenever we load a new concept or return to the graph
+  useEffect(() => { hasZoomedRef.current = false; }, [decodedUri]);
+
+  // Re-apply forces + reset zoom gate when the graph tab becomes active
   useEffect(() => {
-    if (activeTab !== 'graph' || !fgRef.current) return;
-    fgRef.current.d3ReheatSimulation();
-  }, [activeTab, graphData]);
+    if (activeTab !== 'graph' || viewportSize.width === 0) return;
+    hasZoomedRef.current = false;
+    const forceTimer = setTimeout(() => {
+      applyForces();
+      fgRef.current?.d3ReheatSimulation();
+    }, 50);
+    return () => clearTimeout(forceTimer);
+  }, [activeTab, viewportSize.width, viewportSize.height, applyForces]);
+
+  // ─── Reheat on incremental graph data changes ────────────────────────
+  // Existing nodes are pinned (fx/fy), so a reheat only moves the genuinely
+  // new nodes into place — the rest of the layout stays frozen.
+  const graphDataRef = useRef(graphData);
+  useEffect(() => {
+    if (graphDataRef.current === graphData) return;
+    graphDataRef.current = graphData;
+    if (activeTab !== 'graph') return;
+    const timer = setTimeout(() => {
+      applyForces();
+      fgRef.current?.d3ReheatSimulation();
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [graphData, activeTab, applyForces]);
+
+  // onEngineStop fires when the simulation cools. Zoom once per load/activate.
+  const handleEngineStop = useCallback(() => {
+    // Make sure the final settled positions are captured before the engine idles
+    handleEngineTick();
+    if (hasZoomedRef.current) return;
+    hasZoomedRef.current = true;
+    try { fgRef.current?.zoomToFit(400, 70, () => true); } catch { void 0; }
+  }, [handleEngineTick]);
 
   useEffect(() => {
     setTimeout(() => { setCollapsedCategories(new Set()); }, 0);
@@ -914,7 +1010,6 @@ function GraphPage() {
       nodeLabel: string,
   ) => {
     event.stopPropagation();
-    // Capture rect synchronously — currentTarget is nulled after the event handler returns
     const anchorRect = event.currentTarget.getBoundingClientRect();
     setHierarchyPopover(prev =>
         prev?.uri === nodeUri
@@ -969,12 +1064,9 @@ function GraphPage() {
     return <p className="p-8 text-destructive">Error loading concept layout setup.</p>;
   }
 
-  // Helper: build a click handler for a given ConceptNode
   const makeNodeClickHandler = (item: ConceptNode) =>
       (nodeUri: string, event: React.MouseEvent<HTMLButtonElement>) =>
           handleHierarchyNodeClick(nodeUri, event, getConceptLabel(item, searchLanguage));
-
-
 
   return (
       <>
@@ -1020,8 +1112,8 @@ function GraphPage() {
                                 width={viewportSize.width}
                                 height={viewportSize.height}
                                 backgroundColor={P.bg}
-                                warmupTicks={40}
-                                cooldownTicks={120}
+                                onEngineTick={handleEngineTick}
+                                onEngineStop={handleEngineStop}
 
                                 nodeCanvasObject={(node: NodeObject<GraphNode>, ctx) => {
                                   const isCenter = node.uri === concept.uri;
@@ -1050,8 +1142,8 @@ function GraphPage() {
                                   if (hoverNode && node.uri !== hoverNode && node.id !== hoverNode) {
                                     const related = graphData.links.some(l => {
                                       const s = getNodeId(l.source);
-                                      const t = getNodeId(l.target);
-                                      return (s === hoverNode && t === node.id) || (t === hoverNode && s === node.id);
+                                      const tgt = getNodeId(l.target);
+                                      return (s === hoverNode && tgt === node.id) || (tgt === hoverNode && s === node.id);
                                     });
                                     if (!related && node.uri !== concept.uri) ctx.globalAlpha = 0.3;
                                   }
@@ -1259,14 +1351,14 @@ function GraphPage() {
 
                                 linkWidth={(link) => {
                                   const s = getNodeId(link.source);
-                                  const t = getNodeId(link.target);
-                                  return (s === hoverNode || t === hoverNode) ? 2.5 : 1.2;
+                                  const tgt = getNodeId(link.target);
+                                  return (s === hoverNode || tgt === hoverNode) ? 2.5 : 1.2;
                                 }}
                                 linkColor={(link) => {
                                   const s = getNodeId(link.source);
-                                  const t = getNodeId(link.target);
+                                  const tgt = getNodeId(link.target);
                                   if (hoverNode) {
-                                    if (s === hoverNode || t === hoverNode) return P.teal;
+                                    if (s === hoverNode || tgt === hoverNode) return P.teal;
                                     return P.linkDim;
                                   }
                                   return P.link;
