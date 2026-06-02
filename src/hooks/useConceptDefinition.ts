@@ -50,14 +50,14 @@ function definitionSystemPrompt(targetLang: string): string {
     return (
       'Si terminološki asistent za bibliografsko geslovnico COBISS SGC. ' +
       'Odgovarjaš SAMO v slovenščini. ' +
-      'Napiši kratko, nevtralno definicijo koncepta (1–2 stavka, največ 40 besed). ' +
+      'Napiši kratko, nevtralno definicijo koncepta (1–2 stavka, največ 10 besed). ' +
       'Brez uvoda, brez navednic, brez dodatnih razlag — samo definicija.'
     );
   }
   return (
     'You are a terminology assistant for the COBISS SGC bibliographic thesaurus. ' +
     'Reply ONLY in English. ' +
-    'Write a short, neutral definition of the concept (1–2 sentences, max 40 words). ' +
+    'Write a short, neutral definition of the concept (1–2 sentences, max 10 words). ' +
     'No preamble, no quotes, no extra commentary — definition only.'
   );
 }

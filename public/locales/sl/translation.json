@@ -91,5 +91,8 @@
   "openRelatedTerm": "Odpri sorodni izraz",
   "preparingView": "Priprava pogleda...",
   "expandConnections": "Razširi povezave",
-  "viewConceptPage": "Prikaži stran pojma"
+  "viewConceptPage": "Prikaži stran pojma",
+  "collapseConnections": "Strni povezave",
+  "aiTranslated":"Prevedeno z AI",
+  "aiGenerated":"Ustvarjeno z AI"
 }

@@ -7,7 +7,7 @@ import type { TFunction } from 'i18next';
 import * as d3 from 'd3-force';
 import ForceGraph2D, { type ForceGraphMethods, type NodeObject } from 'react-force-graph-2d';
 import { Badge } from '@/components/ui/badge.tsx';
-import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card.tsx';
+import {Card, CardContent} from '@/components/ui/card.tsx';
 import { Separator } from '@/components/ui/separator.tsx';
 import { Skeleton } from '@/components/ui/skeleton.tsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.tsx';
@@ -169,9 +169,9 @@ interface HierarchyTreeEntry {
 }
 
 interface HierarchyTreeModel {
-  parents: HierarchyTreeEntry[];  // pure broader  → stacked above current
-  children: HierarchyTreeEntry[]; // pure narrower → tree under current
-  related: HierarchyTreeEntry[];  // related + multi-relation ("shared")
+  parents: HierarchyTreeEntry[];
+  children: HierarchyTreeEntry[];
+  related: HierarchyTreeEntry[];
 }
 
 function buildHierarchyTree(
@@ -220,13 +220,15 @@ function buildHierarchyTree(
 
 // ─── Hierarchy tree node card ──────────────────────────────────────────────
 const HierarchyTreeNode = memo(function HierarchyTreeNode({
-  kind, label, uri, onClick, t,
+  kind, label, uri, isExpanded, isLoading, onClick, t,
 }: {
   kind: HierarchyNodeKind;
   label: string;
   uri: string;
   relations: HierarchyRelationKind[];
-  onClick?: (uri: string) => void;
+  isExpanded?: boolean;
+  isLoading?: boolean;
+  onClick?: (uri: string, event: React.MouseEvent<HTMLButtonElement>) => void;
   t: TFunction;
 }) {
   const isRoot = kind === 'root';
@@ -244,27 +246,180 @@ const HierarchyTreeNode = memo(function HierarchyTreeNode({
       <button
           type="button"
           className={cn(
-              'hierarchy-tree-node-card group flex items-start gap-3 p-4 rounded-sm border text-card-foreground text-left transition-shadow shadow-sm w-full',
+              'hierarchy-tree-node-card group flex items-center justify-between gap-3 p-4 rounded-sm border text-card-foreground text-left transition-shadow shadow-sm w-full',
               isRoot
                   ? 'border-[var(--brand-teal)] bg-[var(--tint-teal)] cursor-default'
-                  : 'border-[var(--line)] bg-[var(--surface)] hover:shadow-md',
+                  : isExpanded
+                      ? 'border-[var(--brand-navy)]/40 bg-[var(--tint-navy)] hover:shadow-md'
+                      : 'border-[var(--line)] bg-[var(--surface)] hover:shadow-md',
           )}
-          onClick={isRoot ? undefined : () => onClick?.(uri)}
+          onClick={isRoot ? undefined : (e) => onClick?.(uri, e)}
           disabled={isRoot}
           title={uri}
           aria-label={`${relationLabel} ${cleanLabel}`}
       >
-        <span className="flex flex-col pt-1">
-          <span className={cn(
-              'font-semibold text-[15px] transition-colors',
-              isRoot ? 'text-[var(--brand-teal-strong)]' : 'text-[var(--ink)] group-hover:text-[var(--brand-navy)]',
-          )}>
-            {cleanLabel}
-          </span>
+        <span className={cn(
+            'font-semibold text-[15px] transition-colors',
+            isRoot ? 'text-[var(--brand-teal-strong)]' : 'text-[var(--ink)] group-hover:text-[var(--brand-navy)]',
+        )}>
+          {cleanLabel}
         </span>
+        {!isRoot && (
+            <span className={cn(
+                'shrink-0 w-5 h-5 flex items-center justify-center rounded-full border text-[11px] font-bold transition-colors',
+                isExpanded
+                    ? 'border-[var(--brand-navy)]/40 text-[var(--brand-navy)] bg-[var(--surface)]'
+                    : 'border-[var(--line)] text-[var(--ink-faint)] bg-transparent group-hover:border-[var(--brand-navy)]/40 group-hover:text-[var(--brand-navy)]',
+            )}>
+              {isLoading ? '·' : isExpanded ? '−' : '+'}
+            </span>
+        )}
       </button>
   );
 });
+
+// ─── HierarchyNodePopover ─────────────────────────────────────────────────
+interface HierarchyNodePopoverProps {
+  label: string;
+  uri: string;
+  isExpanded: boolean;
+  anchorRect: DOMRect;
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  onToggleExpand: () => void;
+  onNavigate: () => void;
+  onClose: () => void;
+  t: TFunction;
+}
+
+function HierarchyNodePopover({
+  label, isExpanded, anchorRect, containerRef, onToggleExpand, onNavigate, onClose, t,
+}: HierarchyNodePopoverProps) {
+  const containerRect = containerRef.current?.getBoundingClientRect();
+  const top = anchorRect.bottom - (containerRect?.top ?? 0) + 6;
+  const left = anchorRect.left - (containerRect?.left ?? 0);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('[data-hierarchy-popover]')) onClose();
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [onClose]);
+
+  return (
+      <div
+          data-hierarchy-popover
+          className="absolute z-30 bg-white border border-[#e4ebf2] shadow-xl rounded-sm p-1.5 flex flex-col gap-0.5 w-52 animate-in fade-in zoom-in-95 duration-100 select-none"
+          style={{ top: `${top}px`, left: `${Math.max(4, left)}px`, maxWidth: "calc(100vw - 8px)" }}
+          onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#7c8ba0] border-b border-[#f3f6fa] mb-1 truncate">
+          {label}
+        </div>
+        <button
+            type="button"
+            className="w-full text-left px-2 py-1.5 text-xs font-semibold text-[#14283b] hover:bg-[#f3f6fa] hover:text-[#004b87] rounded-sm transition-colors flex items-center gap-2"
+            onClick={() => { onToggleExpand(); onClose(); }}
+        >
+          {isExpanded
+              ? <><span>✕</span> {t('collapseConnections', 'Collapse Connections')}</>
+              : t('expandConnections', 'Expand Connections')}
+        </button>
+        <button
+            type="button"
+            className="w-full text-left px-2 py-1.5 text-xs font-semibold text-[#14283b] hover:bg-[#f3f6fa] hover:text-[#004b87] rounded-sm transition-colors flex items-center gap-2"
+            onClick={() => { onNavigate(); onClose(); }}
+        >
+          {t('viewConceptPage', 'View Concept Page')}
+        </button>
+      </div>
+  );
+}
+
+// ─── HierarchyExpandedNeighbors ───────────────────────────────────────────
+interface HierarchyExpandedNeighborsProps {
+  uri: string;
+  neighborhoodCache: Map<string, { nodes: ConceptNode[]; edges: ConceptEdge[] }>;
+  lang: string;
+  loadingUri: string;
+  onNavigate: (uri: string) => void;
+  t: TFunction;
+}
+
+function HierarchyExpandedNeighbors({
+  uri, neighborhoodCache, lang, loadingUri, onNavigate, t,
+}: HierarchyExpandedNeighborsProps) {
+  const cached = neighborhoodCache.get(uri);
+  const isLoading = loadingUri === uri && !cached;
+
+  if (isLoading) {
+    return (
+        <div className="ml-6 mt-1 flex flex-col gap-1.5 pl-4 border-l-2 border-[var(--line)]">
+          <Skeleton className="h-10 w-full rounded-sm bg-[var(--surface-muted)]" />
+          <Skeleton className="h-10 w-4/5 rounded-sm bg-[var(--surface-muted)]" />
+        </div>
+    );
+  }
+
+  if (!cached) return null;
+
+  const nodeMap = new Map(cached.nodes.map(n => [n.uri, n]));
+  const groups: Record<'broader' | 'narrower' | 'related', ConceptNode[]> = {
+    broader: [], narrower: [], related: [],
+  };
+
+  cached.edges.forEach((edge) => {
+    if (edge.sourceUri === uri) {
+      const kind = edge.relationType.toLowerCase() as 'broader' | 'narrower' | 'related';
+      if (kind in groups) {
+        const node = nodeMap.get(edge.targetUri);
+        if (node) groups[kind].push(node);
+      }
+    }
+  });
+
+  const hasAny = groups.broader.length + groups.narrower.length + groups.related.length > 0;
+  if (!hasAny) {
+    return (
+        <div className="ml-6 mt-1 pl-4 border-l-2 border-[var(--line)] py-2 text-xs text-[var(--ink-faint)]">
+          {t('noRelations', 'No related terms to display.')}
+        </div>
+    );
+  }
+
+  const kindLabel: Record<'broader' | 'narrower' | 'related', string> = {
+    broader: t('broader', 'Broader'),
+    narrower: t('narrower', 'Narrower'),
+    related: t('sharedRelated', 'Related'),
+  };
+
+  return (
+      <div className="ml-2 md:ml-6 mt-1 flex flex-col gap-2 pl-3 md:pl-4 border-l-2 border-[var(--brand-navy)]/20">
+        {(['broader', 'narrower', 'related'] as const).map((kind) => {
+          const items = groups[kind];
+          if (items.length === 0) return null;
+          return (
+              <div key={kind} className="flex flex-col gap-1">
+                <span className="text-[9px] uppercase font-bold tracking-wider text-[var(--ink-faint)] px-1">
+                  {kindLabel[kind]}
+                </span>
+                {items.map((item) => (
+                    <HierarchyTreeNode
+                        key={item.uri}
+                        kind={kind}
+                        label={getConceptLabel(item, lang)}
+                        uri={item.uri}
+                        relations={[kind]}
+                        onClick={onNavigate}
+                        t={t}
+                    />
+                ))}
+              </div>
+          );
+        })}
+      </div>
+  );
+}
 
 // ─── Plus/minus hitbox (graph canvas only) ────────────────────────────────
 interface PlusHitbox {
@@ -325,30 +480,89 @@ const GET_NEIGHBORHOOD = gql`
   }
 `;
 
-// ─── CategoryButton ───────────────────────────────────────────────────────
-interface CategoryButtonProps {
-  kind: 'broader' | 'narrower' | 'related';
-  count: number;
-  label: string;
-  hiddenCategories: Set<'broader' | 'narrower' | 'related'>;
-  toggleCategory: (category: 'broader' | 'narrower' | 'related') => void;
+// ─── ResolvedSection ──────────────────────────────────────────────────────
+function ResolvedSection({ state, label, t }: { state: ResolvedTextState; label: string; t: TFunction }) {
+  if (state.status === 'idle') return null;
+
+  return (
+      <div className="graph-overlay-section flex flex-col gap-1 pointer-events-none">
+        <span className="text-[9px] uppercase font-bold tracking-wider text-[var(--ink-faint)]">{label}</span>
+        {state.status === 'loading' ? (
+            <div className="flex flex-col gap-1.5" aria-label={t('loading', 'Loading…')}>
+              <Skeleton className="h-3 w-full rounded bg-[var(--surface-muted)]" />
+              <Skeleton className="h-3 w-5/6 rounded bg-[var(--surface-muted)]" />
+              <Skeleton className="h-3 w-4/6 rounded bg-[var(--surface-muted)]" />
+            </div>
+        ) : (
+            <>
+              <p className="text-sm text-[var(--ink-muted)] leading-relaxed">{state.text}</p>
+              {state.source !== 'native' ? (
+                  <span
+                      className="inline-flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider text-[var(--brand-teal-strong)]"
+                      title={state.source === 'translated' ? 'Translated by AI' : 'Generated by AI'}
+                  >
+                    <span aria-hidden="true">✦</span>
+                    {state.source === 'translated' ? t('aiTranslated', 'AI translated') : t('aiGenerated', 'AI generated')}
+                  </span>
+              ) : null}
+            </>
+        )}
+      </div>
+  );
 }
 
-function CategoryButton({ kind, count, label, hiddenCategories, toggleCategory }: CategoryButtonProps) {
-  const isHidden = hiddenCategories.has(kind);
+// ─── HierarchyInfoSections ────────────────────────────────────────────────
+function HierarchyInfoSections({ concept, lang, t }: {
+  concept: Concept;
+  lang: string;
+  t: TFunction;
+}) {
+  const labels = {
+    prefLabelSl: concept.prefLabelSl ?? concept.prefLabel,
+    prefLabelEn: concept.prefLabelEn ?? concept.prefLabel,
+  };
+  const scopeState = useConceptScopeNote({ lang, scopeNote: concept.scopeNote, ...labels });
+  const defState = useConceptDefinition({ lang, definition: concept.definition, ...labels });
+
   return (
-      <button
-          onClick={() => toggleCategory(kind)}
-          className={cn(
-              "graph-metric flex flex-col p-2 rounded-sm flex-1 text-center transition-all border",
-              isHidden
-                  ? "bg-[var(--surface-muted)] opacity-50 grayscale border-transparent"
-                  : "bg-[var(--surface-muted)] border-[var(--line)] cursor-pointer hover:border-[var(--brand-navy)]"
+      <>
+        <ResolvedSection state={scopeState} label={t('scopeNote', 'Scope note')} t={t} />
+        <ResolvedSection state={defState} label={t('definition', 'Definition')} t={t} />
+      </>
+  );
+}
+
+// ─── MobileInfoPanel ─────────────────────────────────────────────────────────
+// On mobile: collapsible accordion. On md+: always-open sidebar.
+function MobileInfoPanel({ concept, lang, t }: { concept: Concept; lang: string; t: TFunction }) {
+  const [open, setOpen] = useState(false);
+  return (
+      <>
+        {/* Mobile: collapsible header strip */}
+        <div className="md:hidden border-b border-[var(--line)] bg-[var(--surface)]">
+          <button
+              type="button"
+              onClick={() => setOpen(prev => !prev)}
+              className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
+          >
+            <span className="font-semibold text-sm text-[var(--ink)] truncate">
+              {t('definition', 'Definition')}
+            </span>
+            <span className="shrink-0 text-[var(--ink-faint)] text-lg leading-none">
+              {open ? '−' : '+'}
+            </span>
+          </button>
+          {open && (
+              <div className="px-4 pb-4 flex flex-col gap-3">
+                <HierarchyInfoSections concept={concept} lang={lang} t={t} />
+              </div>
           )}
-      >
-        <span className="text-[10px] uppercase font-bold text-[var(--ink-faint)]">{label}</span>
-        <strong className="text-lg text-[var(--brand-navy)]">{count}</strong>
-      </button>
+        </div>
+        {/* Desktop: always-visible sidebar */}
+        <aside className="hidden md:flex md:flex-col hierarchy-info-panel shrink-0 w-72 border-r border-[var(--line)] bg-[var(--surface)]/95 backdrop-blur-sm gap-4 p-6 overflow-y-auto">
+          <HierarchyInfoSections concept={concept} lang={lang} t={t} />
+        </aside>
+      </>
   );
 }
 
@@ -365,37 +579,7 @@ interface DefinitionOverlayProps {
   toggleCategory: (category: 'broader' | 'narrower' | 'related') => void;
 }
 
-function ResolvedSection({ state, label, t }: { state: ResolvedTextState; label: string; t: TFunction }) {
-  if (state.status === 'idle') return null;
-
-  return (
-      <div className="graph-overlay-section flex flex-col gap-1 pointer-events-none">
-        <span className="text-[9px] uppercase font-bold tracking-wider text-[var(--ink-faint)]">{label}</span>
-        {state.status === 'loading' ? (
-            <div className="flex flex-col gap-1.5" aria-label={t('loading', 'Loading…')}>
-              <Skeleton className="h-3 w-full rounded bg-[var(--surface-muted)]" />
-              <Skeleton className="h-3 w-5/6 rounded bg-[var(--surface-muted)]" />
-              <Skeleton className="h-3 w-4/6 rounded bg-[var(--surface-muted)]" />
-            </div>
-        ) : (
-            <>
-              <p className="text-sm text-[var(--ink-muted)] leading-relaxed line-clamp-4">{state.text}</p>
-              {state.source !== 'native' ? (
-                  <span
-                      className="inline-flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider text-[var(--brand-teal-strong)]"
-                      title={state.source === 'translated' ? 'Translated by AI' : 'Generated by AI'}
-                  >
-                    <span aria-hidden="true">✦</span>
-                    {state.source === 'translated' ? t('aiTranslated', 'AI translated') : t('aiGenerated', 'AI generated')}
-                  </span>
-              ) : null}
-            </>
-        )}
-      </div>
-  );
-}
-
-function DefinitionOverlay({ concept, translatedTitle, relatedCount, broaderCount, narrowerCount, lang, hiddenCategories, toggleCategory, t }: DefinitionOverlayProps) {
+function DefinitionOverlay({ concept, lang, t }: DefinitionOverlayProps) {
   const labels = {
     prefLabelSl: concept.prefLabelSl ?? concept.prefLabel,
     prefLabelEn: concept.prefLabelEn ?? concept.prefLabel,
@@ -406,25 +590,11 @@ function DefinitionOverlay({ concept, translatedTitle, relatedCount, broaderCoun
 
   return (
       <div className="graph-overlay absolute top-4 left-4 z-10 w-72 bg-[var(--surface)]/95 backdrop-blur-sm border border-[var(--line)] shadow-lg shadow-[var(--brand-navy)]/5 p-5 rounded-sm flex flex-col gap-3 pointer-events-auto">
-        <h3 className="text-lg font-bold leading-tight text-[var(--ink)] font-heading pointer-events-none">{translatedTitle}</h3>
-
         <div className="graph-overlay-body flex flex-col gap-3">
           <ResolvedSection state={scopeState} label={t('scopeNote', 'Scope note')} t={t} />
           <ResolvedSection state={defState} label={t('definition', 'Definition')} t={t} />
         </div>
-
         <Separator className="graph-overlay-separator my-2 pointer-events-none" />
-
-        <div className="graph-metrics flex justify-between gap-2" aria-label="Concept relation summary">
-          <CategoryButton kind="broader" count={broaderCount} label={t('broader', 'Broader')} hiddenCategories={hiddenCategories} toggleCategory={toggleCategory} />
-          <CategoryButton kind="narrower" count={narrowerCount} label={t('narrower', 'Narrower')} hiddenCategories={hiddenCategories} toggleCategory={toggleCategory} />
-          <CategoryButton kind="related" count={relatedCount} label={t('related', 'Related')} hiddenCategories={hiddenCategories} toggleCategory={toggleCategory} />
-
-          <div className="graph-metric flex flex-col bg-[var(--tint-navy)] border border-[var(--brand-navy)]/15 p-2 rounded-sm flex-1 text-center pointer-events-none">
-            <span className="text-[10px] uppercase font-bold text-[var(--ink-faint)]">{t('totalLinks', 'Total Links')}</span>
-            <strong className="text-lg text-[var(--brand-teal-strong)]">{broaderCount + relatedCount + narrowerCount}</strong>
-          </div>
-        </div>
       </div>
   );
 }
@@ -453,6 +623,15 @@ function GraphPage() {
   const [popoverNode, setPopoverNode] = useState<GraphNode | null>(null);
   const [popoverPos, setPopoverPos] = useState<{ x: number; y: number } | null>(null);
 
+  // ─── Hierarchy popover + expand state ────────────────────────────────
+  const [hierarchyPopover, setHierarchyPopover] = useState<{
+    uri: string;
+    label: string;
+    anchorRect: DOMRect;
+  } | null>(null);
+  const [hierarchyExpandedUris, setHierarchyExpandedUris] = useState<Set<string>>(new Set());
+  const hierarchyTreePanelRef = useRef<HTMLDivElement | null>(null);
+
   const { uri } = useParams<{ uri: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -461,7 +640,6 @@ function GraphPage() {
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [hoverNode, setHoverNode] = useState<string | null>(null);
 
-  // hierarchy tree ref — used to scroll the current term into view
   const hierarchyCurrentRef = useRef<HTMLDivElement | null>(null);
 
   const [expandedGroups, setExpandedGroups] = useState<Record<HierarchyGroupKind, boolean>>({
@@ -566,6 +744,8 @@ function GraphPage() {
     setTimeout(() => {
       setPopoverNode(null);
       setPopoverPos(null);
+      setHierarchyPopover(null);
+      setHierarchyExpandedUris(new Set());
     }, 0);
   }, [decodedUri, searchParams]);
 
@@ -727,6 +907,38 @@ function GraphPage() {
     navigate(buildConceptUrl(targetUri, 'hierarchy'));
   }, [buildConceptUrl, navigate]);
 
+  // ─── Hierarchy node click → open popover ─────────────────────────────
+  const handleHierarchyNodeClick = useCallback((
+      nodeUri: string,
+      event: React.MouseEvent<HTMLButtonElement>,
+      nodeLabel: string,
+  ) => {
+    event.stopPropagation();
+    // Capture rect synchronously — currentTarget is nulled after the event handler returns
+    const anchorRect = event.currentTarget.getBoundingClientRect();
+    setHierarchyPopover(prev =>
+        prev?.uri === nodeUri
+            ? null
+            : { uri: nodeUri, label: nodeLabel, anchorRect }
+    );
+  }, []);
+
+  // ─── Hierarchy expand/collapse ────────────────────────────────────────
+  const handleHierarchyToggleExpand = useCallback((nodeUri: string) => {
+    setHierarchyExpandedUris(prev => {
+      const next = new Set(prev);
+      if (next.has(nodeUri)) {
+        next.delete(nodeUri);
+      } else {
+        next.add(nodeUri);
+        if (!neighborhoodCache.has(nodeUri)) {
+          setTargetNeighborhoodUri(nodeUri);
+        }
+      }
+      return next;
+    });
+  }, [neighborhoodCache]);
+
   // ─── Hierarchy tree model ─────────────────────────────────────────────
   const hierarchyTree = useMemo<HierarchyTreeModel>(() => {
     if (!concept) return { parents: [], children: [], related: [] };
@@ -736,7 +948,6 @@ function GraphPage() {
     return buildHierarchyTree(visibleBroader, visibleNarrower, visibleRelated, searchLanguage);
   }, [concept, expandedGroups.broader, expandedGroups.narrower, expandedGroups.related, broaderTerms, narrowerTerms, relatedTerms, searchLanguage]);
 
-  // centre the selected term once the tree mounts / concept changes
   useEffect(() => {
     if (activeTab !== 'hierarchy') return;
     const id = requestAnimationFrame(() => {
@@ -758,6 +969,13 @@ function GraphPage() {
     return <p className="p-8 text-destructive">Error loading concept layout setup.</p>;
   }
 
+  // Helper: build a click handler for a given ConceptNode
+  const makeNodeClickHandler = (item: ConceptNode) =>
+      (nodeUri: string, event: React.MouseEvent<HTMLButtonElement>) =>
+          handleHierarchyNodeClick(nodeUri, event, getConceptLabel(item, searchLanguage));
+
+
+
   return (
       <>
         <SEO title={seoTitle} description={seoDescription} keywords={seoKeywords} canonicalUrl={canonicalUrl} />
@@ -768,7 +986,7 @@ function GraphPage() {
                 <div className="graph-title-block flex flex-col gap-2">
                   <Badge variant="secondary" className="w-fit bg-[var(--tint-navy)] text-[var(--brand-navy)] font-bold tracking-wide uppercase text-[10px] px-2 py-0.5 rounded-sm border border-[var(--brand-navy)]/15">{t('selectedTerm', 'Selected term')}</Badge>
                   <h2 className="graph-title text-3xl font-bold tracking-tight text-[var(--ink-strong)] font-heading">{translatedTitle}</h2>
-                  <p className="graph-subtitle text-sm text-[var(--ink-muted)] font-mono bg-[var(--surface-muted)] border border-[var(--line)] px-2 py-1 rounded w-fit">{concept.uri}</p>
+                  <a href={concept.uri} className="graph-subtitle text-sm text-[var(--ink-muted)] font-mono bg-[var(--surface-muted)] border border-[var(--line)] px-2 py-1 rounded w-fit">{concept.uri}</a>
                 </div>
 
                 <TabsList className="graph-tabs-list bg-[var(--surface-muted)] border border-[var(--line)] p-1 rounded-sm inline-flex h-12 items-center justify-center">
@@ -1119,29 +1337,28 @@ function GraphPage() {
               {/* ── HIERARCHY TAB ── */}
               <TabsContent value="hierarchy" className="graph-tab-content m-0 focus-visible:outline-none focus-visible:ring-0">
                 <Card className="graph-card graph-card--hierarchy rounded-sm shadow-sm border-[var(--line)] overflow-hidden bg-[var(--surface)]">
-                  <CardHeader className="graph-card-header bg-[var(--surface-subtle)] border-b border-[var(--line)] p-6">
-                    <div className="graph-card-heading flex flex-col gap-2">
-                      <CardTitle className="text-xl font-bold text-[var(--ink-strong)] font-heading">{t('hierarchyLayoutTitle', 'Concept Hierarchy')}</CardTitle>
-                      <CardDescription className="text-[var(--ink-muted)] text-sm">{t('hierarchyLayoutDesc', 'Browse concept layout hierarchies.')}</CardDescription>
-                    </div>
-                  </CardHeader>
+                  <CardContent className="graph-hierarchy-content p-0 h-[calc(100vh-200px)] relative flex flex-col md:flex-row">
 
-                  <CardContent className="graph-hierarchy-content p-0 h-[calc(100vh-200px)] relative bg-linear-to-br from-[var(--surface)] via-[var(--surface-subtle)] to-[var(--tint-navy)]">
-                    <div className="hierarchy-tree-shell w-full h-full flex flex-col">
+                    {/* ── LEFT INFO PANEL ── */}
+                    <MobileInfoPanel concept={concept} lang={searchLanguage} t={t} />
 
-                      {/* scrollable indented tree */}
-                      <div className="hierarchy-tree-scroll flex-1 w-full overflow-auto pt-6 pb-12 px-6">
+                    {/* ── TREE PANEL ── */}
+                    <div
+                        ref={hierarchyTreePanelRef}
+                        className="hierarchy-tree-shell flex-1 flex flex-col min-w-0 bg-linear-to-br from-[var(--surface)] via-[var(--surface-subtle)] to-[var(--tint-navy)] relative min-h-0"
+                        onClick={() => setHierarchyPopover(null)}
+                    >
+                      <div className="hierarchy-tree-scroll flex-1 w-full overflow-auto pt-4 pb-12 px-3 md:pt-6 md:px-6">
                         <div className="hierarchy-tree">
 
-                          {/* BROADER ancestors stacked above current, joined by a spine */}
+                          {/* BROADER ancestors */}
                           <div className="hierarchy-tree-spine">
-                            
-                            {/* Inline Broader Toggle */}
+
                             {broaderCount > 0 && (
                               <div className="hierarchy-tree-spine-row mb-2">
                                 <button
                                   type="button"
-                                  onClick={() => toggleHierarchyGroup('broader')}
+                                  onClick={(e) => { e.stopPropagation(); toggleHierarchyGroup('broader'); }}
                                   className="flex items-center gap-3 w-full p-2 hover:bg-[var(--surface-muted)] rounded-sm transition-colors text-left group"
                                 >
                                   <span className="w-8 h-8 flex items-center justify-center shrink-0 border border-[var(--brand-navy)]/30 bg-[var(--surface)] text-[var(--brand-navy)] group-hover:bg-[var(--tint-navy)] rounded-sm transition-colors font-bold text-lg">
@@ -1161,9 +1378,21 @@ function GraphPage() {
                                       label={getConceptLabel(entry.item, searchLanguage)}
                                       uri={entry.item.uri}
                                       relations={entry.relations}
-                                      onClick={handleHierarchyConceptClick}
+                                      isExpanded={hierarchyExpandedUris.has(entry.item.uri)}
+                                      isLoading={targetNeighborhoodUri === entry.item.uri}
+                                      onClick={makeNodeClickHandler(entry.item)}
                                       t={t}
                                   />
+                                  {hierarchyExpandedUris.has(entry.item.uri) && (
+                                      <HierarchyExpandedNeighbors
+                                          uri={entry.item.uri}
+                                          neighborhoodCache={neighborhoodCache}
+                                          lang={searchLanguage}
+                                          loadingUri={targetNeighborhoodUri}
+                                          onNavigate={(targetUri) => handleHierarchyConceptClick(targetUri)}
+                                          t={t}
+                                      />
+                                  )}
                                 </div>
                             ))}
 
@@ -1179,14 +1408,13 @@ function GraphPage() {
                             </div>
                           </div>
 
-                          {/* NARROWER as children below */}
+                          {/* NARROWER */}
                           {narrowerCount > 0 && (
                               <ul className="hierarchy-tree-children">
-                                {/* Inline Narrower Toggle */}
                                 <li className="hierarchy-tree-child">
                                   <button
                                     type="button"
-                                    onClick={() => toggleHierarchyGroup('narrower')}
+                                    onClick={(e) => { e.stopPropagation(); toggleHierarchyGroup('narrower'); }}
                                     className="flex items-center gap-3 w-full p-2 hover:bg-[var(--surface-muted)] rounded-sm transition-colors text-left group"
                                   >
                                     <span className="w-8 h-8 flex items-center justify-center shrink-0 border border-[var(--brand-navy)]/30 bg-[var(--surface)] text-[var(--brand-navy)] group-hover:bg-[var(--tint-navy)] rounded-sm transition-colors font-bold text-lg">
@@ -1204,22 +1432,33 @@ function GraphPage() {
                                           label={getConceptLabel(entry.item, searchLanguage)}
                                           uri={entry.item.uri}
                                           relations={entry.relations}
-                                          onClick={handleHierarchyConceptClick}
+                                          isExpanded={hierarchyExpandedUris.has(entry.item.uri)}
+                                          isLoading={targetNeighborhoodUri === entry.item.uri}
+                                          onClick={makeNodeClickHandler(entry.item)}
                                           t={t}
                                       />
+                                      {hierarchyExpandedUris.has(entry.item.uri) && (
+                                          <HierarchyExpandedNeighbors
+                                              uri={entry.item.uri}
+                                              neighborhoodCache={neighborhoodCache}
+                                              lang={searchLanguage}
+                                              loadingUri={targetNeighborhoodUri}
+                                              onNavigate={(targetUri) => handleHierarchyConceptClick(targetUri)}
+                                              t={t}
+                                          />
+                                      )}
                                     </li>
                                 ))}
                               </ul>
                           )}
 
-                          {/* RELATED as children below */}
+                          {/* RELATED */}
                           {relatedCount > 0 && (
                               <ul className="hierarchy-tree-children">
-                                {/* Inline Related Toggle */}
                                 <li className="hierarchy-tree-child hierarchy-tree-child--related">
                                   <button
                                     type="button"
-                                    onClick={() => toggleHierarchyGroup('related')}
+                                    onClick={(e) => { e.stopPropagation(); toggleHierarchyGroup('related'); }}
                                     className="flex items-center gap-3 w-full p-2 hover:bg-[var(--surface-muted)] rounded-sm transition-colors text-left group"
                                   >
                                     <span className="w-8 h-8 flex items-center justify-center shrink-0 border border-[var(--brand-teal)]/40 bg-[var(--surface)] text-[var(--brand-teal-strong)] group-hover:bg-[var(--tint-teal)] rounded-sm transition-colors font-bold text-lg">
@@ -1237,9 +1476,21 @@ function GraphPage() {
                                           label={getConceptLabel(entry.item, searchLanguage)}
                                           uri={entry.item.uri}
                                           relations={entry.relations}
-                                          onClick={handleHierarchyConceptClick}
+                                          isExpanded={hierarchyExpandedUris.has(entry.item.uri)}
+                                          isLoading={targetNeighborhoodUri === entry.item.uri}
+                                          onClick={makeNodeClickHandler(entry.item)}
                                           t={t}
                                       />
+                                      {hierarchyExpandedUris.has(entry.item.uri) && (
+                                          <HierarchyExpandedNeighbors
+                                              uri={entry.item.uri}
+                                              neighborhoodCache={neighborhoodCache}
+                                              lang={searchLanguage}
+                                              loadingUri={targetNeighborhoodUri}
+                                              onNavigate={(targetUri) => handleHierarchyConceptClick(targetUri)}
+                                              t={t}
+                                          />
+                                      )}
                                     </li>
                                 ))}
                               </ul>
@@ -1253,6 +1504,21 @@ function GraphPage() {
 
                         </div>
                       </div>
+
+                      {/* ── HIERARCHY POPOVER ── */}
+                      {hierarchyPopover && (
+                          <HierarchyNodePopover
+                              label={hierarchyPopover.label}
+                              uri={hierarchyPopover.uri}
+                              isExpanded={hierarchyExpandedUris.has(hierarchyPopover.uri)}
+                              anchorRect={hierarchyPopover.anchorRect}
+                              containerRef={hierarchyTreePanelRef}
+                              onToggleExpand={() => handleHierarchyToggleExpand(hierarchyPopover.uri)}
+                              onNavigate={() => handleHierarchyConceptClick(hierarchyPopover.uri)}
+                              onClose={() => setHierarchyPopover(null)}
+                              t={t}
+                          />
+                      )}
                     </div>
                   </CardContent>
                 </Card>
