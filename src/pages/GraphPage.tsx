@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton.tsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.tsx';
 import { Footer } from '@/components/layout/Footer.tsx';
 import { SEO } from '@/components/layout/SEO.tsx';
+import { ConceptSearchBar } from '@/components/search/ConceptSearchBar.tsx';
 import { cn, stripLanguageTag } from '@/lib/utils.ts';
 import { useTheme } from '@/hooks/useTheme.ts';
 import { useConceptDefinition, useConceptScopeNote, type ResolvedTextState } from '@/hooks/useConceptDefinition.ts';
@@ -1093,14 +1094,17 @@ function GraphPage() {
         <div className="graph-page w-full min-h-[calc(100vh-3rem)] bg-linear-to-b from-[var(--surface)] to-[var(--surface-muted)]">
           <section className="graph-shell mx-auto p-4 md:p-6 lg:p-8 flex flex-col gap-6">
             <Tabs value={activeTab} onValueChange={handleTabChange} className="graph-tabs w-full flex flex-col gap-4">
-              <div className="graph-toolbar flex flex-col md:flex-row justify-between items-start md:items-end gap-6 bg-[var(--surface)] border border-[var(--line)] shadow-sm p-6 rounded-sm">
-                <div className="graph-title-block flex flex-col gap-2">
+              <div className="graph-toolbar flex flex-col md:flex-row items-start md:items-end gap-4 md:gap-6 bg-[var(--surface)] border border-[var(--line)] shadow-sm p-6 rounded-sm">
+                <div className="graph-title-block flex flex-col gap-2 md:flex-1 min-w-0">
                   <Badge variant="secondary" className="w-fit bg-[var(--tint-navy)] text-[var(--brand-navy)] font-bold tracking-wide uppercase text-[10px] px-2 py-0.5 rounded-sm border border-[var(--brand-navy)]/15">{t('selectedTerm', 'Selected term')}</Badge>
                   <h2 className="graph-title text-3xl font-bold tracking-tight text-[var(--ink-strong)] font-heading">{translatedTitle}</h2>
                   <a href={concept.uri} className="graph-subtitle text-sm text-[var(--ink-muted)] font-mono bg-[var(--surface-muted)] border border-[var(--line)] px-2 py-1 rounded w-fit">{concept.uri}</a>
                 </div>
 
-                <TabsList className="graph-tabs-list bg-[var(--surface-muted)] border border-[var(--line)] p-1 rounded-sm inline-flex h-12 items-center justify-center">
+                {/* In-page concept search — jump to another term without going home */}
+                <ConceptSearchBar className="w-full md:w-72 lg:w-80 shrink-0" />
+
+                <TabsList className="graph-tabs-list bg-[var(--surface-muted)] border border-[var(--line)] p-1 rounded-sm inline-flex h-12 items-center justify-center shrink-0">
                   <TabsTrigger value="graph" className="rounded-sm px-6 py-2.5 text-sm font-semibold transition-all text-[var(--ink-muted)] hover:text-[var(--ink)] data-[state=active]:bg-[var(--surface)] data-[state=active]:text-[var(--brand-navy)] data-[state=active]:shadow-sm">{t('tabGraph', 'Graph View')}</TabsTrigger>
                   <TabsTrigger value="hierarchy" className="rounded-sm px-6 py-2.5 text-sm font-semibold transition-all text-[var(--ink-muted)] hover:text-[var(--ink)] data-[state=active]:bg-[var(--surface)] data-[state=active]:text-[var(--brand-navy)] data-[state=active]:shadow-sm">{t('tabHierarchy', 'Hierarchy')}</TabsTrigger>
                 </TabsList>
