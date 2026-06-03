@@ -5,33 +5,29 @@ import { useRateLimit } from '@/context/RateLimitContext';
 import './CaptchaModal.css';
 
 
-const apiUrl = import.meta.env.VITE_API_URL;
-const baseUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
+// const apiUrl = import.meta.env.VITE_API_URL;
+// const baseUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
+
+
+const PROXY_ENDPOINT = 'https://corsproxy.io/?';
+
+
 function getVerificationUrl(): string {
   if (!import.meta.env.PROD) {
     return '/api/auth/verify-gateway';
   }
-
-  if (!apiUrl) {
-    console.error('VITE_API_URL environment variable not set.');
-    return '/api/auth/verify-gateway'; }
-
+  const apiUrl = import.meta.env.VITE_API_URL;
   const baseUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
-  return `${baseUrl}/api/auth/verify-gateway`;
+  return `${PROXY_ENDPOINT}${encodeURIComponent(`${baseUrl}/api/auth/verify-gateway`)}`;
 }
 
 function getChallengeUrl(): string {
   if (!import.meta.env.PROD) {
-    return '/api/auth/captcha-challenge';
+    return 'http://localhost:8080/api/auth/captcha-challenge';
   }
-
   const apiUrl = import.meta.env.VITE_API_URL;
-  if (!apiUrl) {
-    console.error('VITE_API_URL environment variable not set.');
-    return '/api/auth/captcha-challenge';
-  }
-
-  return `${baseUrl}/api/auth/captcha-challenge`;
+  const baseUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
+  return `${PROXY_ENDPOINT}${encodeURIComponent(`${baseUrl}/api/auth/captcha-challenge`)}`;
 }
 
 export function CaptchaModal() {

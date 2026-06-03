@@ -544,8 +544,8 @@ function HierarchyInfoSections({ concept, lang, t }: {
 
   return (
       <>
-        <ResolvedSection state={scopeState} label={t('scopeNote', 'Scope note')} t={t} />
-        <ResolvedSection state={defState} label={t('definition', 'Definition')} t={t} />
+        <ResolvedSection state={scopeState} label="" t={t} />
+        <ResolvedSection state={defState} label="" t={t} />
       </>
   );
 }
@@ -606,8 +606,8 @@ function DefinitionOverlay({ concept, lang, t }: DefinitionOverlayProps) {
   return (
       <div className="graph-overlay absolute top-4 left-4 z-10 w-72 bg-[var(--surface)]/95 backdrop-blur-sm border border-[var(--line)] shadow-lg shadow-[var(--brand-navy)]/5 p-5 rounded-sm flex flex-col gap-3 pointer-events-auto">
         <div className="graph-overlay-body flex flex-col gap-3">
-          <ResolvedSection state={scopeState} label={t('scopeNote', 'Scope note')} t={t} />
-          <ResolvedSection state={defState} label={t('definition', 'Definition')} t={t} />
+          <ResolvedSection state={scopeState} label="" t={t} />
+          <ResolvedSection state={defState} label="" t={t} />
         </div>
         <Separator className="graph-overlay-separator my-2 pointer-events-none" />
       </div>
