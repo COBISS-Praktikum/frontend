@@ -9,7 +9,7 @@ import './CaptchaModal.css';
 // const baseUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
 
 
-const PROXY_ENDPOINT = 'https://corsproxy.io/?';
+// const PROXY_ENDPOINT = 'https://corsproxy.io/?';
 
 
 function getVerificationUrl(): string {
@@ -18,16 +18,16 @@ function getVerificationUrl(): string {
   }
   const apiUrl = import.meta.env.VITE_API_URL;
   const baseUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
-  return `${PROXY_ENDPOINT}${encodeURIComponent(`${baseUrl}/api/auth/verify-gateway`)}`;
+  return `${baseUrl}/api/auth/verify-gateway`; // direct, no proxy
 }
 
 function getChallengeUrl(): string {
   if (!import.meta.env.PROD) {
-    return 'http://localhost:8080/api/auth/captcha-challenge';
+    return '/api/auth/captcha-challenge';
   }
   const apiUrl = import.meta.env.VITE_API_URL;
   const baseUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
-  return `${PROXY_ENDPOINT}${encodeURIComponent(`${baseUrl}/api/auth/captcha-challenge`)}`;
+  return `${baseUrl}/api/auth/captcha-challenge`; // direct, no proxy
 }
 
 export function CaptchaModal() {
