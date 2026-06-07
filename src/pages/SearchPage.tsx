@@ -90,7 +90,7 @@ function useTrendingConcepts(lang: string) {
 
         const results = data?.searchConcepts ?? [];
         const sampled = sampleN(results, 4);
-        const items = sampled.map((c: any) => {
+        const items = sampled.map((c) => {
           const rawLabel =
             searchLang === 'sl'
               ? (c.prefLabelSl ?? c.prefLabelEn ?? c.prefLabel)
@@ -99,7 +99,7 @@ function useTrendingConcepts(lang: string) {
           return { label, query: label };
         });
         setTrending(items);
-      } catch (err) {
+      } catch {
         // Silently fall back to empty — the section simply won't render
         if (!cancelled) setTrending([]);
       } finally {
