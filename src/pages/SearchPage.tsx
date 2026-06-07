@@ -1,6 +1,8 @@
-import { useMemo, useRef } from "react";
+import { useRef, useEffect, useState } from "react";
 import { useTranslation } from 'react-i18next';
 import { Network, GitMerge, Languages, Database } from 'lucide-react';
+import { gql } from '@apollo/client';
+import { useApolloClient } from '@apollo/client/react';
 import { SEO } from '@/components/layout/SEO.tsx';
 import { ConceptSearchBar, type ConceptSearchBarHandle } from '@/components/search/ConceptSearchBar.tsx';
 
@@ -21,21 +23,107 @@ const BackgroundField = () => (
   </div>
 );
 
+const SEARCH_CONCEPTS = gql`
+  query SearchConcepts($text: String!, $limit: Int!, $lang: String!) {
+    searchConcepts(text: $text, limit: $limit, lang: $lang) {
+      uri
+      prefLabel
+      prefLabelSl
+      prefLabelEn
+    }
+  }
+`;
+
+interface ConceptSearchResult {
+  uri: string;
+  prefLabel?: string | null;
+  prefLabelSl?: string | null;
+  prefLabelEn?: string | null;
+}
+
+// Seed pools: short, common words that yield rich, varied results in each language.
+// Each page load picks one at random, so the trending bar changes every visit.
+const SEED_WORDS_SL = [
+  'um', 'svet', 'čas', 'delo', 'voda', 'zemlja', 'umet', 'živ', 'prav',
+  'druž', 'znan', 'kult', 'polit', 'narv', 'med', 'šol', 'gosp', 'rel',
+];
+
+const SEED_WORDS_EN = [
+  'art', 'world', 'time', 'work', 'water', 'earth', 'life', 'law',
+  'social', 'science', 'culture', 'polit', 'nature', 'med', 'school',
+  'econ', 'relig', 'tech', 'hist', 'lang',
+];
+
+function pickRandom<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function sampleN<T>(arr: T[], n: number): T[] {
+  const shuffled = [...arr].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, n);
+}
+
+function stripLanguageTag(label: string | null | undefined): string {
+  if (!label) return '';
+  return label.replace(/@(sl|en)$/, '').trim();
+}
+
+function useTrendingConcepts(lang: string) {
+  const client = useApolloClient();
+  const [trending, setTrending] = useState<Array<{ label: string; query: string }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const searchLang = lang.toLowerCase().startsWith('sl') ? 'sl' : 'en';
+    const seedPool = searchLang === 'sl' ? SEED_WORDS_SL : SEED_WORDS_EN;
+    const seed = pickRandom(seedPool);
+
+    const run = async () => {
+      try {
+        const { data } = await client.query<{ searchConcepts: ConceptSearchResult[] }>({
+          query: SEARCH_CONCEPTS,
+          variables: { text: seed, limit: 20, lang: searchLang },
+          fetchPolicy: 'network-only',
+        });
+        if (cancelled) return;
+
+        const results = data?.searchConcepts ?? [];
+        const sampled = sampleN(results, 4);
+        const items = sampled.map((c: any) => {
+          const rawLabel =
+            searchLang === 'sl'
+              ? (c.prefLabelSl ?? c.prefLabelEn ?? c.prefLabel)
+              : (c.prefLabelEn ?? c.prefLabelSl ?? c.prefLabel);
+          const label = stripLanguageTag(rawLabel) || c.uri;
+          return { label, query: label };
+        });
+        setTrending(items);
+      } catch (err) {
+        // Silently fall back to empty — the section simply won't render
+        if (!cancelled) setTrending([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    void run();
+    return () => { cancelled = true; };
+    // Re-fetch whenever the UI language changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang]);
+
+  return { trending, loading };
+}
+
 function SearchPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const searchRef = useRef<ConceptSearchBarHandle>(null);
+  const lang = i18n.resolvedLanguage ?? i18n.language ?? 'en';
+
+  const { trending, loading: trendingLoading } = useTrendingConcepts(lang);
 
   const canonicalUrl = typeof window !== 'undefined' ? `${window.location.origin}/frontend/` : undefined;
-
-  const trendingConcepts = useMemo(
-    () => [
-      { label: t('trendingConcept1Label', 'Artificial Intelligence'), query: t('trendingConcept1Label', 'Artificial Intelligence') },
-      { label: t('trendingConcept2Label', 'Blockchain'), query: t('trendingConcept2Label', 'Blockchain') },
-      { label: t('trendingConcept3Label', 'Quantum Computing'), query: t('trendingConcept3Label', 'Quantum Computing') },
-      { label: t('trendingConcept4Label', 'Climate Change'), query: t('trendingConcept4Label', 'Climate Change') },
-    ],
-    [t],
-  );
 
   const executeSearch = (query: string) => {
     searchRef.current?.setQuery(query);
@@ -72,26 +160,41 @@ function SearchPage() {
             showShortcutHint
           />
         </div>
-         {/* Live Suggestions / Trends */}
-         <div className="flex flex-wrap items-center justify-center gap-2 max-w-3xl mb-20">
-           <span className="text-sm text-[var(--ink-faint)] mr-2">{t('trendingLabel', 'Trending:')}</span>
-           {trendingConcepts.map((item, i) => (
-            <button
-              key={i}
-              onClick={() => executeSearch(item.query)}
-              className="px-3.5 py-1.5 rounded-sm text-xs font-semibold bg-[var(--surface)] text-[var(--ink-soft)] border border-[var(--line)] hover:border-[var(--brand-teal)] hover:text-[var(--brand-navy)] hover:bg-[var(--tint-teal-soft)] transition-colors"
-            >
-              {item.label}
-            </button>
-          ))}
+
+        {/* Live Suggestions / Trends */}
+        <div className="flex flex-wrap items-center justify-center gap-2 max-w-3xl mb-20 min-h-[2rem]">
+          {/* Always reserve space; show label only once we have items */}
+          {(trendingLoading || trending.length > 0) && (
+            <span className="text-sm text-[var(--ink-faint)] mr-2">{t('trendingLabel', 'Trending:')}</span>
+          )}
+          {trendingLoading
+            ? /* Skeleton chips while fetching */
+              Array.from({ length: 4 }).map((_, i) => (
+                <span
+                  key={i}
+                  className="px-3.5 py-1.5 rounded-sm text-xs bg-[var(--surface)] border border-[var(--line)] animate-pulse"
+                  style={{ width: `${60 + i * 14}px`, display: 'inline-block' }}
+                  aria-hidden="true"
+                />
+              ))
+            : trending.map((item, i) => (
+                <button
+                  key={i}
+                  onClick={() => executeSearch(item.query)}
+                  className="px-3.5 py-1.5 rounded-sm text-xs font-semibold bg-[var(--surface)] text-[var(--ink-soft)] border border-[var(--line)] hover:border-[var(--brand-teal)] hover:text-[var(--brand-navy)] hover:bg-[var(--tint-teal-soft)] transition-colors"
+                >
+                  {item.label}
+                </button>
+              ))}
         </div>
+
         {/* Stats Banner */}
-         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-4xl mb-24">
-           {[
-             { icon: <Database className="w-5 h-5" />, label: t('statConceptsLabel', '700,000+'), desc: t('statConceptsDesc', 'Controlled Concepts') },
-             { icon: <Network className="w-5 h-5" />, label: t('statRealtimeLabel', 'Real-time'), desc: t('statRealtimeDesc', 'Thesaurus Node Mapping') },
-             { icon: <Languages className="w-5 h-5" />, label: t('statInstantLabel', 'Instant'), desc: t('statInstantDesc', 'Dual-Language Taxonomy') }
-           ].map((stat, i) => (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-4xl mb-24">
+          {[
+            { icon: <Database className="w-5 h-5" />, label: t('statConceptsLabel', '700,000+'), desc: t('statConceptsDesc', 'Controlled Concepts') },
+            { icon: <Network className="w-5 h-5" />, label: t('statRealtimeLabel', 'Real-time'), desc: t('statRealtimeDesc', 'Thesaurus Node Mapping') },
+            { icon: <Languages className="w-5 h-5" />, label: t('statInstantLabel', 'Instant'), desc: t('statInstantDesc', 'Dual-Language Taxonomy') }
+          ].map((stat, i) => (
             <div
               key={i}
               className="flex items-center gap-4 p-5 rounded-sm bg-[var(--surface)] border border-[var(--line)] border-t-2 border-t-[var(--brand-navy)]"
@@ -104,6 +207,7 @@ function SearchPage() {
             </div>
           ))}
         </div>
+
         {/* Feature Grid */}
         <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-3 gap-4 mb-24">
           {/* Card 1: Interactive Graph Preview */}
@@ -170,18 +274,20 @@ function SearchPage() {
             </div>
           </div>
         </div>
+
         {/* About Block */}
-         <div className="w-full max-w-4xl p-8 rounded-sm bg-[var(--surface-subtle)] border border-[var(--line)] border-l-4 border-l-[var(--brand-teal)]">
-           <h4 className="text-lg font-semibold text-[var(--ink)] mb-4 font-heading">{t('aboutCardTitle', 'About SGC Navigator')}</h4>
-           <p className="text-[var(--ink-soft)] leading-relaxed mb-4">
-             {t('aboutCardDesc', 'The SGC (Splošni geslovnik COBISS) Navigator provides an advanced semantic visual interface for the exhaustive Slovenian thesaurus. Leveraging graph technologies, it turns hundreds of thousands of controlled vocabulary entries into an explorer-friendly format, showcasing exactly how concepts interrelate structurally and linguistically.')}
-           </p>
-           <p className="text-[var(--ink-faint)] text-sm italic">
-             {t('aboutCardNote', 'Developed to support researchers, indexers, and developers interacting with structured bibliographic data.')}
-           </p>
-         </div>
+        <div className="w-full max-w-4xl p-8 rounded-sm bg-[var(--surface-subtle)] border border-[var(--line)] border-l-4 border-l-[var(--brand-teal)]">
+          <h4 className="text-lg font-semibold text-[var(--ink)] mb-4 font-heading">{t('aboutCardTitle', 'About SGC Navigator')}</h4>
+          <p className="text-[var(--ink-soft)] leading-relaxed mb-4">
+            {t('aboutCardDesc', 'The SGC (Splošni geslovnik COBISS) Navigator provides an advanced semantic visual interface for the exhaustive Slovenian thesaurus. Leveraging graph technologies, it turns hundreds of thousands of controlled vocabulary entries into an explorer-friendly format, showcasing exactly how concepts interrelate structurally and linguistically.')}
+          </p>
+          <p className="text-[var(--ink-faint)] text-sm italic">
+            {t('aboutCardNote', 'Developed to support researchers, indexers, and developers interacting with structured bibliographic data.')}
+          </p>
+        </div>
       </div>
     </div>
   );
 }
+
 export default SearchPage;
