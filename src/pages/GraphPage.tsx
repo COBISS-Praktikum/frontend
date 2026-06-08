@@ -552,6 +552,8 @@ function HierarchyInfoSections({ concept, lang, t }: {
 }
 
 // ─── MobileInfoPanel ─────────────────────────────────────────────────────────
+// FIX 1: Added `max-h-60 overflow-y-auto` to the expanded content div so the
+// definition text is scrollable on mobile instead of overflowing off-screen.
 function MobileInfoPanel({ concept, lang, t }: { concept: Concept; lang: string; t: TFunction }) {
   const [open, setOpen] = useState(false);
   return (
@@ -570,7 +572,7 @@ function MobileInfoPanel({ concept, lang, t }: { concept: Concept; lang: string;
             </span>
           </button>
           {open && (
-              <div className="px-4 pb-4 flex flex-col gap-3">
+              <div className="px-4 pb-4 flex flex-col gap-3 max-h-60 overflow-y-auto">
                 <HierarchyInfoSections concept={concept} lang={lang} t={t} />
               </div>
           )}
@@ -583,6 +585,8 @@ function MobileInfoPanel({ concept, lang, t }: { concept: Concept; lang: string;
 }
 
 // ─── DefinitionOverlay ────────────────────────────────────────────────────
+// FIX 2: On mobile the overlay is replaced by a collapsible strip above the
+// graph canvas (MobileGraphInfoStrip). The absolute overlay is now md+ only.
 interface DefinitionOverlayProps {
   concept: Concept;
   translatedTitle: string;
@@ -605,12 +609,40 @@ function DefinitionOverlay({ concept, lang, t }: DefinitionOverlayProps) {
   const defState = useConceptDefinition({ lang, definition: concept.definition, ...labels });
 
   return (
-      <div className="graph-overlay absolute top-4 left-4 z-10 w-72 bg-[var(--surface)]/95 backdrop-blur-sm border border-[var(--line)] shadow-lg shadow-[var(--brand-navy)]/5 p-5 rounded-sm flex flex-col gap-3 pointer-events-auto">
+      <div className="graph-overlay absolute top-4 left-4 z-10 w-72 bg-[var(--surface)]/95 backdrop-blur-sm border border-[var(--line)] shadow-lg shadow-[var(--brand-navy)]/5 p-5 rounded-sm flex-col gap-3 pointer-events-auto hidden md:flex">
         <div className="graph-overlay-body flex flex-col gap-3">
           <ResolvedSection state={scopeState} label="" t={t} />
           <ResolvedSection state={defState} label="" t={t} />
         </div>
         <Separator className="graph-overlay-separator my-2 pointer-events-none" />
+      </div>
+  );
+}
+
+// ─── MobileGraphInfoStrip ─────────────────────────────────────────────────
+// Shown only on mobile (md:hidden) above the graph canvas in the graph tab.
+// Same toggle pattern as MobileInfoPanel, with scrollable expanded content.
+function MobileGraphInfoStrip({ concept, lang, t }: { concept: Concept; lang: string; t: TFunction }) {
+  const [open, setOpen] = useState(false);
+  return (
+      <div className="md:hidden border-b border-[var(--line)] bg-[var(--surface)] shrink-0">
+        <button
+            type="button"
+            onClick={() => setOpen(prev => !prev)}
+            className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
+        >
+          <span className="font-semibold text-sm text-[var(--ink)] truncate">
+            {t('definition', 'Definition')}
+          </span>
+          <span className="shrink-0 text-[var(--ink-faint)] text-lg leading-none">
+            {open ? '−' : '+'}
+          </span>
+        </button>
+        {open && (
+            <div className="px-4 pb-4 flex flex-col gap-3 max-h-48 overflow-y-auto">
+              <HierarchyInfoSections concept={concept} lang={lang} t={t} />
+            </div>
+        )}
       </div>
   );
 }
@@ -1113,8 +1145,12 @@ function GraphPage() {
               {/* ── GRAPH TAB ── */}
               <TabsContent value="graph" className="graph-tab-content m-0 focus-visible:outline-none focus-visible:ring-0">
                 <Card className="graph-card rounded-sm shadow-sm border-[var(--line)] overflow-hidden bg-[var(--surface)]">
-                  <CardContent className="graph-card-content p-0 m-0 w-full h-[calc(100vh-200px)] relative">
-                    <div className="graph-stage w-full h-full flex flex-row">
+                  <CardContent className="graph-card-content p-0 m-0 w-full h-[calc(100vh-200px)] relative flex flex-col">
+                    {/* FIX 2: Mobile definition strip sits above the graph canvas, not over it */}
+                    <MobileGraphInfoStrip concept={concept} lang={searchLanguage} t={t} />
+
+                    <div className="graph-stage w-full flex-1 flex flex-row min-h-0">
+                      {/* Desktop-only absolute overlay — hidden on mobile via hidden md:flex */}
                       <DefinitionOverlay
                           concept={concept}
                           relatedCount={relatedCount}
