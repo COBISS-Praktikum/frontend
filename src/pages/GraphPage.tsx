@@ -1,4 +1,4 @@
-import {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
@@ -294,9 +294,14 @@ interface HierarchyNodePopoverProps {
 function HierarchyNodePopover({
   label, isExpanded, anchorRect, containerRef, onToggleExpand, onNavigate, onClose, t,
 }: HierarchyNodePopoverProps) {
-  const containerRect = containerRef.current?.getBoundingClientRect();
-  const top = anchorRect.bottom - (containerRect?.top ?? 0) + 6;
-  const left = anchorRect.left - (containerRect?.left ?? 0);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  useLayoutEffect(() => {
+    const containerRect = containerRef.current?.getBoundingClientRect();
+    const top = anchorRect.bottom - (containerRect?.top ?? 0) + 6;
+    const left = anchorRect.left - (containerRect?.left ?? 0);
+    setPos({ top, left });
+  }, [anchorRect, containerRef]);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -310,7 +315,7 @@ function HierarchyNodePopover({
       <div
           data-hierarchy-popover
           className="absolute z-30 bg-white border border-[#e4ebf2] shadow-xl rounded-sm p-1.5 flex flex-col gap-0.5 w-52 animate-in fade-in zoom-in-95 duration-100 select-none"
-          style={{ top: `${top}px`, left: `${Math.max(4, left)}px`, maxWidth: "calc(100vw - 8px)" }}
+          style={{ top: `${pos.top}px`, left: `${Math.max(4, pos.left)}px`, maxWidth: "calc(100vw - 8px)" }}
           onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#7c8ba0] border-b border-[#f3f6fa] mb-1 truncate">
