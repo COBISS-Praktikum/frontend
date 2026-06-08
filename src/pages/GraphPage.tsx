@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
@@ -7,14 +7,13 @@ import type { TFunction } from 'i18next';
 import * as d3 from 'd3-force';
 import ForceGraph2D, { type ForceGraphMethods, type NodeObject } from 'react-force-graph-2d';
 import { Badge } from '@/components/ui/badge.tsx';
-import { Card, CardContent } from '@/components/ui/card.tsx';
+import {Card, CardContent} from '@/components/ui/card.tsx';
 import { Separator } from '@/components/ui/separator.tsx';
 import { Skeleton } from '@/components/ui/skeleton.tsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.tsx';
 import { Footer } from '@/components/layout/Footer.tsx';
 import { SEO } from '@/components/layout/SEO.tsx';
-import { ConceptSearchBar } from '@/components/search/ConceptSearchBar.tsx';
-import { cn, stripLanguageTag } from '@/lib/utils.ts';
+import {cn, stripLanguageTag} from '@/lib/utils.ts';
 import { useTheme } from '@/hooks/useTheme.ts';
 import { useConceptDefinition, useConceptScopeNote, type ResolvedTextState } from '@/hooks/useConceptDefinition.ts';
 import './GraphPage.css';
@@ -61,8 +60,6 @@ interface GraphNode {
   isExpanded?: boolean;
   fx?: number;
   fy?: number;
-  _width?: number;
-  _height?: number;
 }
 
 interface GraphLink {
@@ -143,17 +140,6 @@ const CANVAS_PALETTE: Record<'light' | 'dark', CanvasPalette> = {
 };
 
 const EMPTY_CONCEPT_NODES: ConceptNode[] = [];
-
-// Helper for deterministic pseudo-random layout generation without breaking React purity
-function getPseudoRandom(seed: string): number {
-  let h = 0xdeadbeef;
-  for (let i = 0; i < seed.length; i++) {
-    h = Math.imul(h ^ seed.charCodeAt(i), 2654435761);
-  }
-  h = Math.imul(h ^ (h >>> 16), 2246822507);
-  h ^= h >>> 13;
-  return (h >>> 0) / 4294967296;
-}
 
 function getConceptLabel(item: ConceptNode, lang: string) {
   if (lang === 'sl') {
@@ -308,14 +294,9 @@ interface HierarchyNodePopoverProps {
 function HierarchyNodePopover({
   label, isExpanded, anchorRect, containerRef, onToggleExpand, onNavigate, onClose, t,
 }: HierarchyNodePopoverProps) {
-  const [pos, setPos] = useState({ top: 0, left: 0 });
-
-  useLayoutEffect(() => {
-    const containerRect = containerRef.current?.getBoundingClientRect();
-    const top = anchorRect.bottom - (containerRect?.top ?? 0) + 6;
-    const left = anchorRect.left - (containerRect?.left ?? 0);
-    setPos({ top, left });
-  }, [anchorRect, containerRef]);
+  const containerRect = containerRef.current?.getBoundingClientRect();
+  const top = anchorRect.bottom - (containerRect?.top ?? 0) + 6;
+  const left = anchorRect.left - (containerRect?.left ?? 0);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -329,7 +310,7 @@ function HierarchyNodePopover({
       <div
           data-hierarchy-popover
           className="absolute z-30 bg-white border border-[#e4ebf2] shadow-xl rounded-sm p-1.5 flex flex-col gap-0.5 w-52 animate-in fade-in zoom-in-95 duration-100 select-none"
-          style={{ top: `${pos.top}px`, left: `${Math.max(4, pos.left)}px`, maxWidth: "calc(100vw - 8px)" }}
+          style={{ top: `${top}px`, left: `${Math.max(4, left)}px`, maxWidth: "calc(100vw - 8px)" }}
           onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#7c8ba0] border-b border-[#f3f6fa] mb-1 truncate">
@@ -545,19 +526,19 @@ function HierarchyInfoSections({ concept, lang, t }: {
 
   return (
       <>
-        <ResolvedSection state={scopeState} label="" t={t} />
-        <ResolvedSection state={defState} label="" t={t} />
+        <ResolvedSection state={scopeState} label={t('scopeNote', 'Scope note')} t={t} />
+        <ResolvedSection state={defState} label={t('definition', 'Definition')} t={t} />
       </>
   );
 }
 
 // ─── MobileInfoPanel ─────────────────────────────────────────────────────────
-// FIX 1: Added `max-h-60 overflow-y-auto` to the expanded content div so the
-// definition text is scrollable on mobile instead of overflowing off-screen.
+// On mobile: collapsible accordion. On md+: always-open sidebar.
 function MobileInfoPanel({ concept, lang, t }: { concept: Concept; lang: string; t: TFunction }) {
   const [open, setOpen] = useState(false);
   return (
       <>
+        {/* Mobile: collapsible header strip */}
         <div className="md:hidden border-b border-[var(--line)] bg-[var(--surface)]">
           <button
               type="button"
@@ -572,11 +553,12 @@ function MobileInfoPanel({ concept, lang, t }: { concept: Concept; lang: string;
             </span>
           </button>
           {open && (
-              <div className="px-4 pb-4 flex flex-col gap-3 max-h-60 overflow-y-auto">
+              <div className="px-4 pb-4 flex flex-col gap-3">
                 <HierarchyInfoSections concept={concept} lang={lang} t={t} />
               </div>
           )}
         </div>
+        {/* Desktop: always-visible sidebar */}
         <aside className="hidden md:flex md:flex-col hierarchy-info-panel shrink-0 w-72 border-r border-[var(--line)] bg-[var(--surface)]/95 backdrop-blur-sm gap-4 p-6 overflow-y-auto">
           <HierarchyInfoSections concept={concept} lang={lang} t={t} />
         </aside>
@@ -585,8 +567,6 @@ function MobileInfoPanel({ concept, lang, t }: { concept: Concept; lang: string;
 }
 
 // ─── DefinitionOverlay ────────────────────────────────────────────────────
-// FIX 2: On mobile the overlay is replaced by a collapsible strip above the
-// graph canvas (MobileGraphInfoStrip). The absolute overlay is now md+ only.
 interface DefinitionOverlayProps {
   concept: Concept;
   translatedTitle: string;
@@ -609,40 +589,12 @@ function DefinitionOverlay({ concept, lang, t }: DefinitionOverlayProps) {
   const defState = useConceptDefinition({ lang, definition: concept.definition, ...labels });
 
   return (
-      <div className="graph-overlay absolute top-4 left-4 z-10 w-72 bg-[var(--surface)]/95 backdrop-blur-sm border border-[var(--line)] shadow-lg shadow-[var(--brand-navy)]/5 p-5 rounded-sm flex-col gap-3 pointer-events-auto hidden md:flex">
+      <div className="graph-overlay absolute top-4 left-4 z-10 w-72 bg-[var(--surface)]/95 backdrop-blur-sm border border-[var(--line)] shadow-lg shadow-[var(--brand-navy)]/5 p-5 rounded-sm flex flex-col gap-3 pointer-events-auto">
         <div className="graph-overlay-body flex flex-col gap-3">
-          <ResolvedSection state={scopeState} label="" t={t} />
-          <ResolvedSection state={defState} label="" t={t} />
+          <ResolvedSection state={scopeState} label={t('scopeNote', 'Scope note')} t={t} />
+          <ResolvedSection state={defState} label={t('definition', 'Definition')} t={t} />
         </div>
         <Separator className="graph-overlay-separator my-2 pointer-events-none" />
-      </div>
-  );
-}
-
-// ─── MobileGraphInfoStrip ─────────────────────────────────────────────────
-// Shown only on mobile (md:hidden) above the graph canvas in the graph tab.
-// Same toggle pattern as MobileInfoPanel, with scrollable expanded content.
-function MobileGraphInfoStrip({ concept, lang, t }: { concept: Concept; lang: string; t: TFunction }) {
-  const [open, setOpen] = useState(false);
-  return (
-      <div className="md:hidden border-b border-[var(--line)] bg-[var(--surface)] shrink-0">
-        <button
-            type="button"
-            onClick={() => setOpen(prev => !prev)}
-            className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
-        >
-          <span className="font-semibold text-sm text-[var(--ink)] truncate">
-            {t('definition', 'Definition')}
-          </span>
-          <span className="shrink-0 text-[var(--ink-faint)] text-lg leading-none">
-            {open ? '−' : '+'}
-          </span>
-        </button>
-        {open && (
-            <div className="px-4 pb-4 flex flex-col gap-3 max-h-48 overflow-y-auto">
-              <HierarchyInfoSections concept={concept} lang={lang} t={t} />
-            </div>
-        )}
       </div>
   );
 }
@@ -668,6 +620,9 @@ function GraphPage() {
   const [hiddenCategories, setHiddenCategories] = useState<Set<'broader' | 'narrower' | 'related'>>(new Set());
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
 
+  const [popoverNode, setPopoverNode] = useState<GraphNode | null>(null);
+  const [popoverPos, setPopoverPos] = useState<{ x: number; y: number } | null>(null);
+
   // ─── Hierarchy popover + expand state ────────────────────────────────
   const [hierarchyPopover, setHierarchyPopover] = useState<{
     uri: string;
@@ -684,9 +639,6 @@ function GraphPage() {
   const [graphViewportElement, setGraphViewportElement] = useState<HTMLDivElement | null>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [hoverNode, setHoverNode] = useState<string | null>(null);
-
-  // ─── Node position cache: persists x/y across graph data changes ─────
-  const [nodePositionCache] = useState(() => new Map<string, { x: number; y: number }>());
 
   const hierarchyCurrentRef = useRef<HTMLDivElement | null>(null);
 
@@ -790,15 +742,12 @@ function GraphPage() {
 
   useEffect(() => {
     setTimeout(() => {
+      setPopoverNode(null);
+      setPopoverPos(null);
       setHierarchyPopover(null);
       setHierarchyExpandedUris(new Set());
     }, 0);
   }, [decodedUri, searchParams]);
-
-  // ─── Clear position cache when navigating to a new concept ───────────
-  useEffect(() => {
-    nodePositionCache.clear();
-  }, [decodedUri, nodePositionCache]);
 
   const activeTab = searchParams.get('tab') === 'hierarchy' ? 'hierarchy' : 'graph';
 
@@ -822,53 +771,13 @@ function GraphPage() {
     const links: GraphLink[] = [];
     const addedNodes = new Map<string, GraphNode>();
 
-    // ─── Cluster helper — preserves or seeds position ─────────────────
-    const addCategoryCluster = (parentUri: string, kind: 'broader' | 'narrower' | 'related') => {
-      const clusterId = `cluster:${kind}:${parentUri}`;
-      const cached = nodePositionCache.get(clusterId);
-      const parentCached = nodePositionCache.get(parentUri);
-      nodes.push({
-        id: clusterId,
-        name: kind === 'broader'
-            ? ` ${t('clusterBroader', 'Broader')}`
-            : kind === 'narrower'
-                ? ` ${t('clusterNarrower', 'Narrower')}`
-                : ` ${t('clusterRelated', 'Related')}`,
-        uri: clusterId,
-        isCluster: true,
-        clusterKind: kind,
-        // Restore exact position if known; otherwise scatter near parent
-        x: cached?.x ?? (parentCached ? parentCached.x + (getPseudoRandom(clusterId + 'x') - 0.5) * 80 : undefined),
-        y: cached?.y ?? (parentCached ? parentCached.y + (getPseudoRandom(clusterId + 'y') - 0.5) * 80 : undefined),
-        // Pin existing cluster pills so the +/- labels don't drift on reheat
-        fx: cached?.x,
-        fy: cached?.y,
-      });
-      links.push({ source: parentUri, target: clusterId });
-      return clusterId;
-    };
-
-    // ─── Concept node helper — preserves or seeds position ───────────
-    const getOrAddConceptNode = (
-        item: ConceptNode,
-        isCenter = false,
-        seedNear?: { x: number; y: number },
-    ) => {
+    const getOrAddConceptNode = (item: ConceptNode, isCenter = false) => {
       if (addedNodes.has(item.uri)) return addedNodes.get(item.uri)!;
-      const cached = nodePositionCache.get(item.uri);
       const nodeObj: GraphNode = {
         id: item.uri,
         name: getConceptLabel(item, searchLanguage).toUpperCase(),
         uri: item.uri,
-        isExpanded: isCenter ? true : neighborhoodCache.has(item.uri),
-        // Restore exact position if known; otherwise scatter near the cluster seed
-        x: cached?.x ?? (seedNear ? seedNear.x + (getPseudoRandom(item.uri + 'x') - 0.5) * 60 : undefined),
-        y: cached?.y ?? (seedNear ? seedNear.y + (getPseudoRandom(item.uri + 'y') - 0.5) * 60 : undefined),
-        // PIN existing nodes in place. On reheat the simulation only moves
-        // brand-new (un-cached) nodes; everything already placed stays put,
-        // so adding/removing siblings never reshuffles the layout.
-        fx: cached?.x,
-        fy: cached?.y,
+        isExpanded: isCenter ? true : neighborhoodCache.has(item.uri)
       };
       nodes.push(nodeObj);
       addedNodes.set(item.uri, nodeObj);
@@ -878,6 +787,20 @@ function GraphPage() {
     getOrAddConceptNode(concept, true);
     const rootNode = addedNodes.get(concept.uri)!;
     rootNode.x = 0; rootNode.y = 0; rootNode.fx = 0; rootNode.fy = 0;
+
+    const getClusterLabel = (kind: 'broader' | 'narrower' | 'related') =>
+        kind === 'broader'
+            ? ` ${t('clusterBroader', 'Broader')}`
+            : kind === 'narrower'
+                ? ` ${t('clusterNarrower', 'Narrower')}`
+                : ` ${t('clusterRelated', 'Related')}`;
+
+    const addCategoryCluster = (parentUri: string, kind: 'broader' | 'narrower' | 'related') => {
+      const clusterId = `cluster:${kind}:${parentUri}`;
+      nodes.push({ id: clusterId, name: getClusterLabel(kind), uri: clusterId, isCluster: true, clusterKind: kind });
+      links.push({ source: parentUri, target: clusterId });
+      return clusterId;
+    };
 
     const rootGroups = [
       { kind: 'broader' as const, items: concept.broader },
@@ -889,11 +812,9 @@ function GraphPage() {
       if (hiddenCategories.has(group.kind)) return;
       if (!group.items || group.items.length === 0) return;
       const clusterId = addCategoryCluster(concept.uri, group.kind);
-      // Seed child nodes near their cluster position
-      const clusterSeed = nodePositionCache.get(clusterId) ?? { x: 0, y: 0 };
       if (!collapsedCategories.has(clusterId)) {
         group.items.forEach((item) => {
-          getOrAddConceptNode(item, false, clusterSeed);
+          getOrAddConceptNode(item);
           links.push({ source: clusterId, target: item.uri });
         });
       }
@@ -918,15 +839,11 @@ function GraphPage() {
         const targetUris = sortedByKind[kind];
         if (targetUris.length === 0) return;
         const clusterId = addCategoryCluster(originUri, kind);
-        // Seed near cluster, falling back to the origin node position
-        const clusterSeed = nodePositionCache.get(clusterId)
-            ?? nodePositionCache.get(originUri)
-            ?? { x: 0, y: 0 };
         if (!collapsedCategories.has(clusterId)) {
           targetUris.forEach((targetUri) => {
             const rawItem = neighborMap.get(targetUri);
             if (rawItem) {
-              getOrAddConceptNode(rawItem, false, clusterSeed);
+              getOrAddConceptNode(rawItem);
               links.push({ source: clusterId, target: targetUri });
             }
           });
@@ -935,84 +852,24 @@ function GraphPage() {
     });
 
     return { nodes, links };
-  }, [data, hiddenCategories, searchLanguage, neighborhoodCache, collapsedCategories, t, nodePositionCache]);
+  }, [data, hiddenCategories, searchLanguage, neighborhoodCache, collapsedCategories, t]);
 
-  // ─── Continuously cache live node positions (every simulation tick) ──
-  // CRITICAL: the graphData memo reads nodePositionCache *synchronously during
-  // render* to pin existing nodes. An effect-based snapshot runs only AFTER
-  // commit, so it would always be one step behind — on the very render that
-  // adds/removes nodes the cache would be stale, existing nodes would lose
-  // their fx/fy, and d3 would re-spiral them (the jump). onEngineTick fires
-  // outside React's render cycle on every frame, so the cache is always fresh
-  // by the time the memo recomputes. For pinned nodes fx/fy is authoritative
-  // (covers user drags); fall back to x/y otherwise.
-  const liveNodesRef = useRef(graphData.nodes);
-  useLayoutEffect(() => {
-    liveNodesRef.current = graphData.nodes;
-  }, [graphData.nodes]);
-  
-  const handleEngineTick = useCallback(() => {
-    liveNodesRef.current.forEach((n) => {
-      const px = n.fx ?? n.x;
-      const py = n.fy ?? n.y;
-      if (px !== undefined && py !== undefined) {
-        nodePositionCache.set(n.id, { x: px, y: py });
-      }
-    });
-  }, [nodePositionCache]);
-
-  // ─── Forces helper ────────────────────────────────────────────────────
-  const applyForces = useCallback(() => {
+  useEffect(() => {
+    if (activeTab !== 'graph' || !fgRef.current || viewportSize.width === 0) return;
     const fg = fgRef.current;
-    if (!fg) return;
     fg.d3Force('charge')?.strength(-650);
     fg.d3Force('link')?.distance(110);
     fg.d3Force('collide', d3.forceCollide().radius(45).iterations(3));
-  }, []);
-
-  // ─── One-time zoom-to-fit per load / tab activation ──────────────────
-  // hasZoomedRef gates the onEngineStop zoom so it fits the SETTLED layout
-  // exactly once after a fresh load or tab switch — never on expand/collapse,
-  // which would otherwise re-frame the camera and feel like a jump.
-  const hasZoomedRef = useRef(false);
-
-  // Reset the zoom gate whenever we load a new concept or return to the graph
-  useEffect(() => { hasZoomedRef.current = false; }, [decodedUri]);
-
-  // Re-apply forces + reset zoom gate when the graph tab becomes active
-  useEffect(() => {
-    if (activeTab !== 'graph' || viewportSize.width === 0) return;
-    hasZoomedRef.current = false;
-    const forceTimer = setTimeout(() => {
-      applyForces();
-      fgRef.current?.d3ReheatSimulation();
-    }, 50);
-    return () => clearTimeout(forceTimer);
-  }, [activeTab, viewportSize.width, viewportSize.height, applyForces]);
-
-  // ─── Reheat on incremental graph data changes ────────────────────────
-  // Existing nodes are pinned (fx/fy), so a reheat only moves the genuinely
-  // new nodes into place — the rest of the layout stays frozen.
-  const graphDataRef = useRef(graphData);
-  useEffect(() => {
-    if (graphDataRef.current === graphData) return;
-    graphDataRef.current = graphData;
-    if (activeTab !== 'graph') return;
     const timer = setTimeout(() => {
-      applyForces();
-      fgRef.current?.d3ReheatSimulation();
-    }, 50);
+      try { fgRef.current?.zoomToFit(400, 70, () => true); } catch { void 0; }
+    }, 150);
     return () => clearTimeout(timer);
-  }, [graphData, activeTab, applyForces]);
+  }, [activeTab, viewportSize.width, viewportSize.height]);
 
-  // onEngineStop fires when the simulation cools. Zoom once per load/activate.
-  const handleEngineStop = useCallback(() => {
-    // Make sure the final settled positions are captured before the engine idles
-    handleEngineTick();
-    if (hasZoomedRef.current) return;
-    hasZoomedRef.current = true;
-    try { fgRef.current?.zoomToFit(400, 70, () => true); } catch { void 0; }
-  }, [handleEngineTick]);
+  useEffect(() => {
+    if (activeTab !== 'graph' || !fgRef.current) return;
+    fgRef.current.d3ReheatSimulation();
+  }, [activeTab, graphData]);
 
   useEffect(() => {
     setTimeout(() => { setCollapsedCategories(new Set()); }, 0);
@@ -1057,6 +914,7 @@ function GraphPage() {
       nodeLabel: string,
   ) => {
     event.stopPropagation();
+    // Capture rect synchronously — currentTarget is nulled after the event handler returns
     const anchorRect = event.currentTarget.getBoundingClientRect();
     setHierarchyPopover(prev =>
         prev?.uri === nodeUri
@@ -1111,9 +969,12 @@ function GraphPage() {
     return <p className="p-8 text-destructive">Error loading concept layout setup.</p>;
   }
 
+  // Helper: build a click handler for a given ConceptNode
   const makeNodeClickHandler = (item: ConceptNode) =>
       (nodeUri: string, event: React.MouseEvent<HTMLButtonElement>) =>
           handleHierarchyNodeClick(nodeUri, event, getConceptLabel(item, searchLanguage));
+
+
 
   return (
       <>
@@ -1121,17 +982,14 @@ function GraphPage() {
         <div className="graph-page w-full min-h-[calc(100vh-3rem)] bg-linear-to-b from-[var(--surface)] to-[var(--surface-muted)]">
           <section className="graph-shell mx-auto p-4 md:p-6 lg:p-8 flex flex-col gap-6">
             <Tabs value={activeTab} onValueChange={handleTabChange} className="graph-tabs w-full flex flex-col gap-4">
-              <div className="graph-toolbar flex flex-col md:flex-row items-start md:items-end gap-4 md:gap-6 bg-[var(--surface)] border border-[var(--line)] shadow-sm p-6 rounded-sm">
-                <div className="graph-title-block flex flex-col gap-2 md:flex-1 min-w-0">
+              <div className="graph-toolbar flex flex-col md:flex-row justify-between items-start md:items-end gap-6 bg-[var(--surface)] border border-[var(--line)] shadow-sm p-6 rounded-sm">
+                <div className="graph-title-block flex flex-col gap-2">
                   <Badge variant="secondary" className="w-fit bg-[var(--tint-navy)] text-[var(--brand-navy)] font-bold tracking-wide uppercase text-[10px] px-2 py-0.5 rounded-sm border border-[var(--brand-navy)]/15">{t('selectedTerm', 'Selected term')}</Badge>
                   <h2 className="graph-title text-3xl font-bold tracking-tight text-[var(--ink-strong)] font-heading">{translatedTitle}</h2>
                   <a href={concept.uri} className="graph-subtitle text-sm text-[var(--ink-muted)] font-mono bg-[var(--surface-muted)] border border-[var(--line)] px-2 py-1 rounded w-fit">{concept.uri}</a>
                 </div>
 
-                {/* In-page concept search — jump to another term without going home */}
-                <ConceptSearchBar className="w-full md:w-72 lg:w-80 shrink-0" />
-
-                <TabsList className="graph-tabs-list bg-[var(--surface-muted)] border border-[var(--line)] p-1 rounded-sm inline-flex h-12 items-center justify-center shrink-0">
+                <TabsList className="graph-tabs-list bg-[var(--surface-muted)] border border-[var(--line)] p-1 rounded-sm inline-flex h-12 items-center justify-center">
                   <TabsTrigger value="graph" className="rounded-sm px-6 py-2.5 text-sm font-semibold transition-all text-[var(--ink-muted)] hover:text-[var(--ink)] data-[state=active]:bg-[var(--surface)] data-[state=active]:text-[var(--brand-navy)] data-[state=active]:shadow-sm">{t('tabGraph', 'Graph View')}</TabsTrigger>
                   <TabsTrigger value="hierarchy" className="rounded-sm px-6 py-2.5 text-sm font-semibold transition-all text-[var(--ink-muted)] hover:text-[var(--ink)] data-[state=active]:bg-[var(--surface)] data-[state=active]:text-[var(--brand-navy)] data-[state=active]:shadow-sm">{t('tabHierarchy', 'Hierarchy')}</TabsTrigger>
                 </TabsList>
@@ -1140,12 +998,8 @@ function GraphPage() {
               {/* ── GRAPH TAB ── */}
               <TabsContent value="graph" className="graph-tab-content m-0 focus-visible:outline-none focus-visible:ring-0">
                 <Card className="graph-card rounded-sm shadow-sm border-[var(--line)] overflow-hidden bg-[var(--surface)]">
-                  <CardContent className="graph-card-content p-0 m-0 w-full h-[calc(100vh-200px)] relative flex flex-col">
-                    {/* FIX 2: Mobile definition strip sits above the graph canvas, not over it */}
-                    <MobileGraphInfoStrip concept={concept} lang={searchLanguage} t={t} />
-
-                    <div className="graph-stage w-full flex-1 flex flex-row min-h-0">
-                      {/* Desktop-only absolute overlay — hidden on mobile via hidden md:flex */}
+                  <CardContent className="graph-card-content p-0 m-0 w-full h-[calc(100vh-200px)] relative">
+                    <div className="graph-stage w-full h-full flex flex-row">
                       <DefinitionOverlay
                           concept={concept}
                           relatedCount={relatedCount}
@@ -1166,8 +1020,8 @@ function GraphPage() {
                                 width={viewportSize.width}
                                 height={viewportSize.height}
                                 backgroundColor={P.bg}
-                                onEngineTick={handleEngineTick}
-                                onEngineStop={handleEngineStop}
+                                warmupTicks={40}
+                                cooldownTicks={120}
 
                                 nodeCanvasObject={(node: NodeObject<GraphNode>, ctx) => {
                                   const isCenter = node.uri === concept.uri;
@@ -1196,8 +1050,8 @@ function GraphPage() {
                                   if (hoverNode && node.uri !== hoverNode && node.id !== hoverNode) {
                                     const related = graphData.links.some(l => {
                                       const s = getNodeId(l.source);
-                                      const tgt = getNodeId(l.target);
-                                      return (s === hoverNode && tgt === node.id) || (tgt === hoverNode && s === node.id);
+                                      const t = getNodeId(l.target);
+                                      return (s === hoverNode && t === node.id) || (t === hoverNode && s === node.id);
                                     });
                                     if (!related && node.uri !== concept.uri) ctx.globalAlpha = 0.3;
                                   }
@@ -1320,13 +1174,10 @@ function GraphPage() {
                                   }
 
                                   if (hitbox && fgRef.current) {
-                                    const canvasRect = graphViewportElement?.getBoundingClientRect();
-                                    const relX = event.clientX - (canvasRect?.left ?? 0);
-                                    const relY = event.clientY - (canvasRect?.top ?? 0);
-                                    const graphCoords = fgRef.current.screen2GraphCoords(relX, relY);
+                                    const graphCoords = fgRef.current.screen2GraphCoords(event.clientX, event.clientY);
                                     const distance = Math.hypot(graphCoords.x - hitbox.x, graphCoords.y - hitbox.y);
 
-                                    if (distance <= 16) {
+                                    if (distance <= (hitbox.r + 5)) {
                                       if (node.uri === concept.uri) return;
                                       const isCurrentlyExpanded = neighborhoodCache.has(node.uri);
                                       if (isCurrentlyExpanded) {
@@ -1342,9 +1193,13 @@ function GraphPage() {
                                     }
                                   }
 
-                                  // Click on node body (not the plus button) → navigate to that concept
                                   if (node.uri === concept.uri) return;
-                                  navigate(buildConceptUrl(node.uri, 'graph'));
+
+                                  if (fgRef.current && node.x !== undefined && node.y !== undefined) {
+                                    const screenCoords = fgRef.current.graph2ScreenCoords(node.x, node.y);
+                                    setPopoverPos({ x: screenCoords.x, y: screenCoords.y });
+                                    setPopoverNode(node);
+                                  }
                                 }}
 
                                 nodePointerAreaPaint={(node: NodeObject<GraphNode>, color: string, ctx: CanvasRenderingContext2D) => {
@@ -1382,8 +1237,7 @@ function GraphPage() {
                                   const wrapper = graphViewportElement;
                                   if (wrapper && fgRef.current) {
                                     const handleMouseMove = (e: MouseEvent) => {
-                                      const rect = wrapper.getBoundingClientRect();
-                                      const graphCoords = fgRef.current!.screen2GraphCoords(e.clientX - rect.left, e.clientY - rect.top);
+                                      const graphCoords = fgRef.current!.screen2GraphCoords(e.clientX, e.clientY);
                                       const hitbox = (node as unknown as HitboxHolder)._plusHitbox;
                                       if (hitbox) {
                                         const distance = Math.hypot(graphCoords.x - hitbox.x, graphCoords.y - hitbox.y);
@@ -1395,20 +1249,24 @@ function GraphPage() {
                                   }
                                 }}
 
-                                onBackgroundClick={() => { /* no-op */ }}
-                                onZoom={() => { /* no-op */ }}
-                                onNodeDrag={() => { /* no-op */ }}
+                                onBackgroundClick={() => { setPopoverNode(null); setPopoverPos(null); }}
+                                onZoom={() => {
+                                  if (popoverNode) { setTimeout(() => { setPopoverNode(null); setPopoverPos(null); }, 0); }
+                                }}
+                                onNodeDrag={() => {
+                                  if (popoverNode) { setTimeout(() => { setPopoverNode(null); setPopoverPos(null); }, 0); }
+                                }}
 
                                 linkWidth={(link) => {
                                   const s = getNodeId(link.source);
-                                  const tgt = getNodeId(link.target);
-                                  return (s === hoverNode || tgt === hoverNode) ? 2.5 : 1.2;
+                                  const t = getNodeId(link.target);
+                                  return (s === hoverNode || t === hoverNode) ? 2.5 : 1.2;
                                 }}
                                 linkColor={(link) => {
                                   const s = getNodeId(link.source);
-                                  const tgt = getNodeId(link.target);
+                                  const t = getNodeId(link.target);
                                   if (hoverNode) {
-                                    if (s === hoverNode || tgt === hoverNode) return P.teal;
+                                    if (s === hoverNode || t === hoverNode) return P.teal;
                                     return P.linkDim;
                                   }
                                   return P.link;
@@ -1419,6 +1277,57 @@ function GraphPage() {
                             />
                         ) : null}
 
+                        {popoverNode && popoverPos && (
+                            <div
+                                className="absolute z-30 bg-white border border-[#e4ebf2] shadow-xl rounded-sm p-1.5 flex flex-col gap-0.5 w-52 animate-in fade-in zoom-in-95 duration-100 select-none"
+                                style={{
+                                  left: `${popoverPos.x}px`,
+                                  top: `${popoverPos.y - 20}px`,
+                                  transform: 'translate(-50%, -100%)',
+                                }}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#7c8ba0] border-b border-[#f3f6fa] mb-1 truncate">
+                                {popoverNode.name}
+                              </div>
+                              <button
+                                  type="button"
+                                  className="w-full text-left px-2 py-1.5 text-xs font-semibold text-[#14283b] hover:bg-[#f3f6fa] hover:text-[#004b87] rounded-sm transition-colors flex items-center gap-2"
+                                  onClick={() => {
+                                    const isCurrentlyExpanded = neighborhoodCache.has(popoverNode.uri);
+                                    if (isCurrentlyExpanded) {
+                                      setNeighborhoodCache((prev) => {
+                                        const updated = new Map(prev);
+                                        updated.delete(popoverNode.uri);
+                                        return pruneOrphanedCache(updated, concept.uri);
+                                      });
+                                    } else {
+                                      setTargetNeighborhoodUri(popoverNode.uri);
+                                    }
+                                    setPopoverNode(null);
+                                    setPopoverPos(null);
+                                  }}
+                              >
+                                {neighborhoodCache.has(popoverNode.uri) ? (
+                                    <><span>✕</span> {t('collapseConnections', 'Collapse Connections')}</>
+                                ) : (
+                                    <>{t('expandConnections', 'Expand Connections')}</>
+                                )}
+                              </button>
+                              <button
+                                  type="button"
+                                  className="w-full text-left px-2 py-1.5 text-xs font-semibold text-[#14283b] hover:bg-[#f3f6fa] hover:text-[#004b87] rounded-sm transition-colors flex items-center gap-2"
+                                  onClick={() => {
+                                    navigate(buildConceptUrl(popoverNode.uri, 'graph'));
+                                    setPopoverNode(null);
+                                    setPopoverPos(null);
+                                  }}
+                              >
+                                {t('viewConceptPage', 'View Concept Page')}
+                              </button>
+                            </div>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -1501,8 +1410,8 @@ function GraphPage() {
 
                           {/* NARROWER */}
                           {narrowerCount > 0 && (
-                              <ul className="hierarchy-tree-children">
-                                <li className="hierarchy-tree-child">
+                              <div className="hierarchy-tree-children-block">
+                                <div className="mb-2">
                                   <button
                                     type="button"
                                     onClick={(e) => { e.stopPropagation(); toggleHierarchyGroup('narrower'); }}
@@ -1515,38 +1424,42 @@ function GraphPage() {
                                       {t('narrower', 'Narrower terms')} <span className="text-[var(--ink-muted)] font-normal">({narrowerCount})</span>
                                     </span>
                                   </button>
-                                </li>
-                                {expandedGroups.narrower && hierarchyTree.children.map((entry) => (
-                                    <li key={entry.item.uri} className="hierarchy-tree-child">
-                                      <HierarchyTreeNode
-                                          kind="narrower"
-                                          label={getConceptLabel(entry.item, searchLanguage)}
-                                          uri={entry.item.uri}
-                                          relations={entry.relations}
-                                          isExpanded={hierarchyExpandedUris.has(entry.item.uri)}
-                                          isLoading={targetNeighborhoodUri === entry.item.uri}
-                                          onClick={makeNodeClickHandler(entry.item)}
-                                          t={t}
-                                      />
-                                      {hierarchyExpandedUris.has(entry.item.uri) && (
-                                          <HierarchyExpandedNeighbors
+                                </div>
+                                {expandedGroups.narrower && (
+                                  <ul className="hierarchy-tree-children">
+                                    {hierarchyTree.children.map((entry) => (
+                                        <li key={entry.item.uri} className="hierarchy-tree-child">
+                                          <HierarchyTreeNode
+                                              kind="narrower"
+                                              label={getConceptLabel(entry.item, searchLanguage)}
                                               uri={entry.item.uri}
-                                              neighborhoodCache={neighborhoodCache}
-                                              lang={searchLanguage}
-                                              loadingUri={targetNeighborhoodUri}
-                                              onNavigate={(targetUri) => handleHierarchyConceptClick(targetUri)}
+                                              relations={entry.relations}
+                                              isExpanded={hierarchyExpandedUris.has(entry.item.uri)}
+                                              isLoading={targetNeighborhoodUri === entry.item.uri}
+                                              onClick={makeNodeClickHandler(entry.item)}
                                               t={t}
                                           />
-                                      )}
-                                    </li>
-                                ))}
-                              </ul>
+                                          {hierarchyExpandedUris.has(entry.item.uri) && (
+                                              <HierarchyExpandedNeighbors
+                                                  uri={entry.item.uri}
+                                                  neighborhoodCache={neighborhoodCache}
+                                                  lang={searchLanguage}
+                                                  loadingUri={targetNeighborhoodUri}
+                                                  onNavigate={(targetUri) => handleHierarchyConceptClick(targetUri)}
+                                                  t={t}
+                                              />
+                                          )}
+                                        </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
                           )}
 
                           {/* RELATED */}
                           {relatedCount > 0 && (
-                              <ul className="hierarchy-tree-children">
-                                <li className="hierarchy-tree-child hierarchy-tree-child--related">
+                              <div className="hierarchy-tree-children-block">
+                                <div className="mb-2">
                                   <button
                                     type="button"
                                     onClick={(e) => { e.stopPropagation(); toggleHierarchyGroup('related'); }}
@@ -1559,32 +1472,36 @@ function GraphPage() {
                                       {t('sharedRelated', 'Shared / Related')} <span className="text-[var(--ink-muted)] font-normal">({relatedCount})</span>
                                     </span>
                                   </button>
-                                </li>
-                                {expandedGroups.related && hierarchyTree.related.map((entry) => (
-                                    <li key={entry.item.uri} className="hierarchy-tree-child hierarchy-tree-child--related">
-                                      <HierarchyTreeNode
-                                          kind={entry.kind}
-                                          label={getConceptLabel(entry.item, searchLanguage)}
-                                          uri={entry.item.uri}
-                                          relations={entry.relations}
-                                          isExpanded={hierarchyExpandedUris.has(entry.item.uri)}
-                                          isLoading={targetNeighborhoodUri === entry.item.uri}
-                                          onClick={makeNodeClickHandler(entry.item)}
-                                          t={t}
-                                      />
-                                      {hierarchyExpandedUris.has(entry.item.uri) && (
-                                          <HierarchyExpandedNeighbors
+                                </div>
+                                {expandedGroups.related && (
+                                  <ul className="hierarchy-tree-children">
+                                    {hierarchyTree.related.map((entry) => (
+                                        <li key={entry.item.uri} className="hierarchy-tree-child hierarchy-tree-child--related">
+                                          <HierarchyTreeNode
+                                              kind={entry.kind}
+                                              label={getConceptLabel(entry.item, searchLanguage)}
                                               uri={entry.item.uri}
-                                              neighborhoodCache={neighborhoodCache}
-                                              lang={searchLanguage}
-                                              loadingUri={targetNeighborhoodUri}
-                                              onNavigate={(targetUri) => handleHierarchyConceptClick(targetUri)}
+                                              relations={entry.relations}
+                                              isExpanded={hierarchyExpandedUris.has(entry.item.uri)}
+                                              isLoading={targetNeighborhoodUri === entry.item.uri}
+                                              onClick={makeNodeClickHandler(entry.item)}
                                               t={t}
                                           />
-                                      )}
-                                    </li>
-                                ))}
-                              </ul>
+                                          {hierarchyExpandedUris.has(entry.item.uri) && (
+                                              <HierarchyExpandedNeighbors
+                                                  uri={entry.item.uri}
+                                                  neighborhoodCache={neighborhoodCache}
+                                                  lang={searchLanguage}
+                                                  loadingUri={targetNeighborhoodUri}
+                                                  onNavigate={(targetUri) => handleHierarchyConceptClick(targetUri)}
+                                                  t={t}
+                                              />
+                                          )}
+                                        </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
                           )}
 
                           {broaderCount + narrowerCount + relatedCount === 0 ? (
