@@ -667,9 +667,6 @@ function GraphPage() {
   const [hiddenCategories, setHiddenCategories] = useState<Set<'broader' | 'narrower' | 'related'>>(new Set());
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
 
-  const [popoverNode, setPopoverNode] = useState<GraphNode | null>(null);
-  const [popoverPos, setPopoverPos] = useState<{ x: number; y: number } | null>(null);
-
   // ─── Hierarchy popover + expand state ────────────────────────────────
   const [hierarchyPopover, setHierarchyPopover] = useState<{
     uri: string;
@@ -792,8 +789,6 @@ function GraphPage() {
 
   useEffect(() => {
     setTimeout(() => {
-      setPopoverNode(null);
-      setPopoverPos(null);
       setHierarchyPopover(null);
       setHierarchyExpandedUris(new Set());
     }, 0);
@@ -1319,12 +1314,7 @@ function GraphPage() {
                                   }
 
                                   if (node.uri === concept.uri) return;
-
-                                  if (fgRef.current && node.x !== undefined && node.y !== undefined) {
-                                    const screenCoords = fgRef.current.graph2ScreenCoords(node.x, node.y);
-                                    setPopoverPos({ x: screenCoords.x, y: screenCoords.y });
-                                    setPopoverNode(node);
-                                  }
+                                  navigate(buildConceptUrl(node.uri, 'graph'));
                                 }}
 
                                 nodePointerAreaPaint={(node: NodeObject<GraphNode>, color: string, ctx: CanvasRenderingContext2D) => {
@@ -1375,13 +1365,9 @@ function GraphPage() {
                                   }
                                 }}
 
-                                onBackgroundClick={() => { setPopoverNode(null); setPopoverPos(null); }}
-                                onZoom={() => {
-                                  if (popoverNode) { setTimeout(() => { setPopoverNode(null); setPopoverPos(null); }, 0); }
-                                }}
-                                onNodeDrag={() => {
-                                  if (popoverNode) { setTimeout(() => { setPopoverNode(null); setPopoverPos(null); }, 0); }
-                                }}
+                                onBackgroundClick={() => { /* no-op */ }}
+                                onZoom={() => { /* no-op */ }}
+                                onNodeDrag={() => { /* no-op */ }}
 
                                 linkWidth={(link) => {
                                   const s = getNodeId(link.source);
@@ -1403,57 +1389,6 @@ function GraphPage() {
                             />
                         ) : null}
 
-                        {popoverNode && popoverPos && (
-                            <div
-                                className="absolute z-30 bg-white border border-[#e4ebf2] shadow-xl rounded-sm p-1.5 flex flex-col gap-0.5 w-52 animate-in fade-in zoom-in-95 duration-100 select-none"
-                                style={{
-                                  left: `${popoverPos.x}px`,
-                                  top: `${popoverPos.y - 20}px`,
-                                  transform: 'translate(-50%, -100%)',
-                                }}
-                                onMouseDown={(e) => e.stopPropagation()}
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                              <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#7c8ba0] border-b border-[#f3f6fa] mb-1 truncate">
-                                {popoverNode.name}
-                              </div>
-                              <button
-                                  type="button"
-                                  className="w-full text-left px-2 py-1.5 text-xs font-semibold text-[#14283b] hover:bg-[#f3f6fa] hover:text-[#004b87] rounded-sm transition-colors flex items-center gap-2"
-                                  onClick={() => {
-                                    const isCurrentlyExpanded = neighborhoodCache.has(popoverNode.uri);
-                                    if (isCurrentlyExpanded) {
-                                      setNeighborhoodCache((prev) => {
-                                        const updated = new Map(prev);
-                                        updated.delete(popoverNode.uri);
-                                        return pruneOrphanedCache(updated, concept.uri);
-                                      });
-                                    } else {
-                                      setTargetNeighborhoodUri(popoverNode.uri);
-                                    }
-                                    setPopoverNode(null);
-                                    setPopoverPos(null);
-                                  }}
-                              >
-                                {neighborhoodCache.has(popoverNode.uri) ? (
-                                    <><span>✕</span> {t('collapseConnections', 'Collapse Connections')}</>
-                                ) : (
-                                    <>{t('expandConnections', 'Expand Connections')}</>
-                                )}
-                              </button>
-                              <button
-                                  type="button"
-                                  className="w-full text-left px-2 py-1.5 text-xs font-semibold text-[#14283b] hover:bg-[#f3f6fa] hover:text-[#004b87] rounded-sm transition-colors flex items-center gap-2"
-                                  onClick={() => {
-                                    navigate(buildConceptUrl(popoverNode.uri, 'graph'));
-                                    setPopoverNode(null);
-                                    setPopoverPos(null);
-                                  }}
-                              >
-                                {t('viewConceptPage', 'View Concept Page')}
-                              </button>
-                            </div>
-                        )}
                       </div>
                     </div>
                   </CardContent>
