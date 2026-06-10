@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton.tsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.tsx';
 import { Footer } from '@/components/layout/Footer.tsx';
 import { SEO } from '@/components/layout/SEO.tsx';
+import { ConceptSearchBar } from '@/components/search/ConceptSearchBar.tsx';
 import {cn, stripLanguageTag} from '@/lib/utils.ts';
 import { useTheme } from '@/hooks/useTheme.ts';
 import { useConceptDefinition, useConceptScopeNote, type ResolvedTextState } from '@/hooks/useConceptDefinition.ts';
@@ -60,6 +61,8 @@ interface GraphNode {
   isExpanded?: boolean;
   fx?: number;
   fy?: number;
+  _width?: number;
+  _height?: number;
 }
 
 interface GraphLink {
@@ -140,6 +143,17 @@ const CANVAS_PALETTE: Record<'light' | 'dark', CanvasPalette> = {
 };
 
 const EMPTY_CONCEPT_NODES: ConceptNode[] = [];
+
+// Helper for deterministic pseudo-random layout generation without breaking React purity
+function getPseudoRandom(seed: string): number {
+  let h = 0xdeadbeef;
+  for (let i = 0; i < seed.length; i++) {
+    h = Math.imul(h ^ seed.charCodeAt(i), 2654435761);
+  }
+  h = Math.imul(h ^ (h >>> 16), 2246822507);
+  h ^= h >>> 13;
+  return (h >>> 0) / 4294967296;
+}
 
 function getConceptLabel(item: ConceptNode, lang: string) {
   if (lang === 'sl') {
@@ -594,12 +608,40 @@ function DefinitionOverlay({ concept, lang, t }: DefinitionOverlayProps) {
   const defState = useConceptDefinition({ lang, definition: concept.definition, ...labels });
 
   return (
-      <div className="graph-overlay absolute top-4 left-4 z-10 w-72 bg-[var(--surface)]/95 backdrop-blur-sm border border-[var(--line)] shadow-lg shadow-[var(--brand-navy)]/5 p-5 rounded-sm flex flex-col gap-3 pointer-events-auto">
+      <div className="graph-overlay absolute top-4 left-4 z-10 w-72 bg-[var(--surface)]/95 backdrop-blur-sm border border-[var(--line)] shadow-lg shadow-[var(--brand-navy)]/5 p-5 rounded-sm flex-col gap-3 pointer-events-auto hidden md:flex">
         <div className="graph-overlay-body flex flex-col gap-3">
           <ResolvedSection state={scopeState} label={t('scopeNote', 'Scope note')} t={t} />
           <ResolvedSection state={defState} label={t('definition', 'Definition')} t={t} />
         </div>
         <Separator className="graph-overlay-separator my-2 pointer-events-none" />
+      </div>
+  );
+}
+
+// ─── MobileGraphInfoStrip ─────────────────────────────────────────────────
+// Shown only on mobile (md:hidden) above the graph canvas in the graph tab.
+// Same toggle pattern as MobileInfoPanel, with scrollable expanded content.
+function MobileGraphInfoStrip({ concept, lang, t }: { concept: Concept; lang: string; t: TFunction }) {
+  const [open, setOpen] = useState(false);
+  return (
+      <div className="md:hidden border-b border-[var(--line)] bg-[var(--surface)] shrink-0">
+        <button
+            type="button"
+            onClick={() => setOpen(prev => !prev)}
+            className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
+        >
+          <span className="font-semibold text-sm text-[var(--ink)] truncate">
+            {t('definition', 'Definition')}
+          </span>
+          <span className="shrink-0 text-[var(--ink-faint)] text-lg leading-none">
+            {open ? '−' : '+'}
+          </span>
+        </button>
+        {open && (
+            <div className="px-4 pb-4 flex flex-col gap-3 max-h-48 overflow-y-auto">
+              <HierarchyInfoSections concept={concept} lang={lang} t={t} />
+            </div>
+        )}
       </div>
   );
 }
@@ -644,6 +686,9 @@ function GraphPage() {
   const [graphViewportElement, setGraphViewportElement] = useState<HTMLDivElement | null>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [hoverNode, setHoverNode] = useState<string | null>(null);
+
+  // ─── Node position cache: persists x/y across graph data changes ─────
+  const [nodePositionCache] = useState(() => new Map<string, { x: number; y: number }>());
 
   const hierarchyCurrentRef = useRef<HTMLDivElement | null>(null);
 
@@ -754,6 +799,11 @@ function GraphPage() {
     }, 0);
   }, [decodedUri, searchParams]);
 
+  // ─── Clear position cache when navigating to a new concept ───────────
+  useEffect(() => {
+    nodePositionCache.clear();
+  }, [decodedUri, nodePositionCache]);
+
   const activeTab = searchParams.get('tab') === 'hierarchy' ? 'hierarchy' : 'graph';
 
   useEffect(() => {
@@ -776,13 +826,47 @@ function GraphPage() {
     const links: GraphLink[] = [];
     const addedNodes = new Map<string, GraphNode>();
 
-    const getOrAddConceptNode = (item: ConceptNode, isCenter = false) => {
+    // ─── Cluster helper — preserves or seeds position ─────────────────
+    const addCategoryCluster = (parentUri: string, kind: 'broader' | 'narrower' | 'related') => {
+      const clusterId = `cluster:${kind}:${parentUri}`;
+      const cached = nodePositionCache.get(clusterId);
+      const parentCached = nodePositionCache.get(parentUri);
+      nodes.push({
+        id: clusterId,
+        name: kind === 'broader'
+            ? ` ${t('clusterBroader', 'Broader')}`
+            : kind === 'narrower'
+                ? ` ${t('clusterNarrower', 'Narrower')}`
+                : ` ${t('clusterRelated', 'Related')}`,
+        uri: clusterId,
+        isCluster: true,
+        clusterKind: kind,
+        x: cached?.x ?? (parentCached ? parentCached.x + (getPseudoRandom(clusterId + 'x') - 0.5) * 80 : undefined),
+        y: cached?.y ?? (parentCached ? parentCached.y + (getPseudoRandom(clusterId + 'y') - 0.5) * 80 : undefined),
+        fx: cached?.x,
+        fy: cached?.y,
+      });
+      links.push({ source: parentUri, target: clusterId });
+      return clusterId;
+    };
+
+    // ─── Concept node helper — preserves or seeds position ───────────
+    const getOrAddConceptNode = (
+        item: ConceptNode,
+        isCenter = false,
+        seedNear?: { x: number; y: number },
+    ) => {
       if (addedNodes.has(item.uri)) return addedNodes.get(item.uri)!;
+      const cached = nodePositionCache.get(item.uri);
       const nodeObj: GraphNode = {
         id: item.uri,
         name: getConceptLabel(item, searchLanguage).toUpperCase(),
         uri: item.uri,
-        isExpanded: isCenter ? true : neighborhoodCache.has(item.uri)
+        isExpanded: isCenter ? true : neighborhoodCache.has(item.uri),
+        x: cached?.x ?? (seedNear ? seedNear.x + (getPseudoRandom(item.uri + 'x') - 0.5) * 60 : undefined),
+        y: cached?.y ?? (seedNear ? seedNear.y + (getPseudoRandom(item.uri + 'y') - 0.5) * 60 : undefined),
+        fx: cached?.x,
+        fy: cached?.y,
       };
       nodes.push(nodeObj);
       addedNodes.set(item.uri, nodeObj);
@@ -792,20 +876,6 @@ function GraphPage() {
     getOrAddConceptNode(concept, true);
     const rootNode = addedNodes.get(concept.uri)!;
     rootNode.x = 0; rootNode.y = 0; rootNode.fx = 0; rootNode.fy = 0;
-
-    const getClusterLabel = (kind: 'broader' | 'narrower' | 'related') =>
-        kind === 'broader'
-            ? ` ${t('clusterBroader', 'Broader')}`
-            : kind === 'narrower'
-                ? ` ${t('clusterNarrower', 'Narrower')}`
-                : ` ${t('clusterRelated', 'Related')}`;
-
-    const addCategoryCluster = (parentUri: string, kind: 'broader' | 'narrower' | 'related') => {
-      const clusterId = `cluster:${kind}:${parentUri}`;
-      nodes.push({ id: clusterId, name: getClusterLabel(kind), uri: clusterId, isCluster: true, clusterKind: kind });
-      links.push({ source: parentUri, target: clusterId });
-      return clusterId;
-    };
 
     const rootGroups = [
       { kind: 'broader' as const, items: concept.broader },
@@ -817,9 +887,10 @@ function GraphPage() {
       if (hiddenCategories.has(group.kind)) return;
       if (!group.items || group.items.length === 0) return;
       const clusterId = addCategoryCluster(concept.uri, group.kind);
+      const clusterSeed = nodePositionCache.get(clusterId) ?? { x: 0, y: 0 };
       if (!collapsedCategories.has(clusterId)) {
         group.items.forEach((item) => {
-          getOrAddConceptNode(item);
+          getOrAddConceptNode(item, false, clusterSeed);
           links.push({ source: clusterId, target: item.uri });
         });
       }
@@ -844,11 +915,14 @@ function GraphPage() {
         const targetUris = sortedByKind[kind];
         if (targetUris.length === 0) return;
         const clusterId = addCategoryCluster(originUri, kind);
+        const clusterSeed = nodePositionCache.get(clusterId)
+            ?? nodePositionCache.get(originUri)
+            ?? { x: 0, y: 0 };
         if (!collapsedCategories.has(clusterId)) {
           targetUris.forEach((targetUri) => {
             const rawItem = neighborMap.get(targetUri);
             if (rawItem) {
-              getOrAddConceptNode(rawItem);
+              getOrAddConceptNode(rawItem, false, clusterSeed);
               links.push({ source: clusterId, target: targetUri });
             }
           });
@@ -857,24 +931,67 @@ function GraphPage() {
     });
 
     return { nodes, links };
-  }, [data, hiddenCategories, searchLanguage, neighborhoodCache, collapsedCategories, t]);
+  }, [data, hiddenCategories, searchLanguage, neighborhoodCache, collapsedCategories, t, nodePositionCache]);
 
-  useEffect(() => {
-    if (activeTab !== 'graph' || !fgRef.current || viewportSize.width === 0) return;
+  // ─── Continuously cache live node positions (every simulation tick) ──
+  const liveNodesRef = useRef(graphData.nodes);
+  useLayoutEffect(() => {
+    liveNodesRef.current = graphData.nodes;
+  }, [graphData.nodes]);
+
+  const handleEngineTick = useCallback(() => {
+    liveNodesRef.current.forEach((n) => {
+      const px = n.fx ?? n.x;
+      const py = n.fy ?? n.y;
+      if (px !== undefined && py !== undefined) {
+        nodePositionCache.set(n.id, { x: px, y: py });
+      }
+    });
+  }, [nodePositionCache]);
+
+  // ─── Forces helper ────────────────────────────────────────────────────
+  const applyForces = useCallback(() => {
     const fg = fgRef.current;
+    if (!fg) return;
     fg.d3Force('charge')?.strength(-650);
     fg.d3Force('link')?.distance(110);
     fg.d3Force('collide', d3.forceCollide().radius(45).iterations(3));
-    const timer = setTimeout(() => {
-      try { fgRef.current?.zoomToFit(400, 70, () => true); } catch { void 0; }
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [activeTab, viewportSize.width, viewportSize.height]);
+  }, []);
+
+  // ─── One-time zoom-to-fit per load / tab activation ──────────────────
+  const hasZoomedRef = useRef(false);
+
+  useEffect(() => { hasZoomedRef.current = false; }, [decodedUri]);
 
   useEffect(() => {
-    if (activeTab !== 'graph' || !fgRef.current) return;
-    fgRef.current.d3ReheatSimulation();
-  }, [activeTab, graphData]);
+    if (activeTab !== 'graph' || viewportSize.width === 0) return;
+    hasZoomedRef.current = false;
+    const forceTimer = setTimeout(() => {
+      applyForces();
+      fgRef.current?.d3ReheatSimulation();
+    }, 50);
+    return () => clearTimeout(forceTimer);
+  }, [activeTab, viewportSize.width, viewportSize.height, applyForces]);
+
+  // ─── Reheat on incremental graph data changes ────────────────────────
+  const graphDataRef = useRef(graphData);
+  useEffect(() => {
+    if (graphDataRef.current === graphData) return;
+    graphDataRef.current = graphData;
+    if (activeTab !== 'graph') return;
+    const timer = setTimeout(() => {
+      applyForces();
+      fgRef.current?.d3ReheatSimulation();
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [graphData, activeTab, applyForces]);
+
+  const handleEngineStop = useCallback(() => {
+    handleEngineTick();
+    if (hasZoomedRef.current) return;
+    hasZoomedRef.current = true;
+    try { fgRef.current?.zoomToFit(400, 70, () => true); } catch { void 0; }
+  }, [handleEngineTick]);
 
   useEffect(() => {
     setTimeout(() => { setCollapsedCategories(new Set()); }, 0);
@@ -919,7 +1036,6 @@ function GraphPage() {
       nodeLabel: string,
   ) => {
     event.stopPropagation();
-    // Capture rect synchronously — currentTarget is nulled after the event handler returns
     const anchorRect = event.currentTarget.getBoundingClientRect();
     setHierarchyPopover(prev =>
         prev?.uri === nodeUri
@@ -974,12 +1090,9 @@ function GraphPage() {
     return <p className="p-8 text-destructive">Error loading concept layout setup.</p>;
   }
 
-  // Helper: build a click handler for a given ConceptNode
   const makeNodeClickHandler = (item: ConceptNode) =>
       (nodeUri: string, event: React.MouseEvent<HTMLButtonElement>) =>
           handleHierarchyNodeClick(nodeUri, event, getConceptLabel(item, searchLanguage));
-
-
 
   return (
       <>
@@ -994,17 +1107,21 @@ function GraphPage() {
                   <a href={concept.uri} className="graph-subtitle text-sm text-[var(--ink-muted)] font-mono bg-[var(--surface-muted)] border border-[var(--line)] px-2 py-1 rounded w-fit">{concept.uri}</a>
                 </div>
 
-                <TabsList className="graph-tabs-list bg-[var(--surface-muted)] border border-[var(--line)] p-1 rounded-sm inline-flex h-12 items-center justify-center">
-                  <TabsTrigger value="graph" className="rounded-sm px-6 py-2.5 text-sm font-semibold transition-all text-[var(--ink-muted)] hover:text-[var(--ink)] data-[state=active]:bg-[var(--surface)] data-[state=active]:text-[var(--brand-navy)] data-[state=active]:shadow-sm">{t('tabGraph', 'Graph View')}</TabsTrigger>
-                  <TabsTrigger value="hierarchy" className="rounded-sm px-6 py-2.5 text-sm font-semibold transition-all text-[var(--ink-muted)] hover:text-[var(--ink)] data-[state=active]:bg-[var(--surface)] data-[state=active]:text-[var(--brand-navy)] data-[state=active]:shadow-sm">{t('tabHierarchy', 'Hierarchy')}</TabsTrigger>
-                </TabsList>
+                <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+                  <ConceptSearchBar className="w-full md:w-72 lg:w-80 shrink-0" />
+                  <TabsList className="graph-tabs-list bg-[var(--surface-muted)] border border-[var(--line)] p-1 rounded-sm inline-flex h-12 items-center justify-center">
+                    <TabsTrigger value="graph" className="rounded-sm px-6 py-2.5 text-sm font-semibold transition-all text-[var(--ink-muted)] hover:text-[var(--ink)] data-[state=active]:bg-[var(--surface)] data-[state=active]:text-[var(--brand-navy)] data-[state=active]:shadow-sm">{t('tabGraph', 'Graph View')}</TabsTrigger>
+                    <TabsTrigger value="hierarchy" className="rounded-sm px-6 py-2.5 text-sm font-semibold transition-all text-[var(--ink-muted)] hover:text-[var(--ink)] data-[state=active]:bg-[var(--surface)] data-[state=active]:text-[var(--brand-navy)] data-[state=active]:shadow-sm">{t('tabHierarchy', 'Hierarchy')}</TabsTrigger>
+                  </TabsList>
+                </div>
               </div>
 
               {/* ── GRAPH TAB ── */}
               <TabsContent value="graph" className="graph-tab-content m-0 focus-visible:outline-none focus-visible:ring-0">
                 <Card className="graph-card rounded-sm shadow-sm border-[var(--line)] overflow-hidden bg-[var(--surface)]">
-                  <CardContent className="graph-card-content p-0 m-0 w-full h-[calc(100vh-200px)] relative">
-                    <div className="graph-stage w-full h-full flex flex-row">
+                  <CardContent className="graph-card-content p-0 m-0 w-full h-[calc(100vh-200px)] relative flex flex-col">
+                    <MobileGraphInfoStrip concept={concept} lang={searchLanguage} t={t} />
+                    <div className="graph-stage w-full flex-1 flex flex-row min-h-0">
                       <DefinitionOverlay
                           concept={concept}
                           relatedCount={relatedCount}
@@ -1025,8 +1142,8 @@ function GraphPage() {
                                 width={viewportSize.width}
                                 height={viewportSize.height}
                                 backgroundColor={P.bg}
-                                warmupTicks={40}
-                                cooldownTicks={120}
+                                onEngineTick={handleEngineTick}
+                                onEngineStop={handleEngineStop}
 
                                 nodeCanvasObject={(node: NodeObject<GraphNode>, ctx) => {
                                   const isCenter = node.uri === concept.uri;
@@ -1179,10 +1296,13 @@ function GraphPage() {
                                   }
 
                                   if (hitbox && fgRef.current) {
-                                    const graphCoords = fgRef.current.screen2GraphCoords(event.clientX, event.clientY);
+                                    const canvasRect = graphViewportElement?.getBoundingClientRect();
+                                    const relX = event.clientX - (canvasRect?.left ?? 0);
+                                    const relY = event.clientY - (canvasRect?.top ?? 0);
+                                    const graphCoords = fgRef.current.screen2GraphCoords(relX, relY);
                                     const distance = Math.hypot(graphCoords.x - hitbox.x, graphCoords.y - hitbox.y);
 
-                                    if (distance <= (hitbox.r + 5)) {
+                                    if (distance <= 16) {
                                       if (node.uri === concept.uri) return;
                                       const isCurrentlyExpanded = neighborhoodCache.has(node.uri);
                                       if (isCurrentlyExpanded) {
@@ -1242,7 +1362,8 @@ function GraphPage() {
                                   const wrapper = graphViewportElement;
                                   if (wrapper && fgRef.current) {
                                     const handleMouseMove = (e: MouseEvent) => {
-                                      const graphCoords = fgRef.current!.screen2GraphCoords(e.clientX, e.clientY);
+                                      const rect = wrapper.getBoundingClientRect();
+                                      const graphCoords = fgRef.current!.screen2GraphCoords(e.clientX - rect.left, e.clientY - rect.top);
                                       const hitbox = (node as unknown as HitboxHolder)._plusHitbox;
                                       if (hitbox) {
                                         const distance = Math.hypot(graphCoords.x - hitbox.x, graphCoords.y - hitbox.y);
