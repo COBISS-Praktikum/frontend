@@ -89,6 +89,8 @@
   "openBroaderTerm": "Open Broader term",
   "openNarrowerTerm": "Open Narrower term",
   "openRelatedTerm": "Open related term",
-  "preparingView": "Preparing..."
+  "preparingView": "Preparing...",
+  "captchaTitle": "Security Verification",
+  "captchaDesc": "You're making requests too quickly. Please verify you're human to continue."
 }
 

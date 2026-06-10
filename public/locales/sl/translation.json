@@ -95,5 +95,7 @@
   "viewConceptPage": "Prikaži stran pojma",
   "collapseConnections": "Strni povezave",
   "aiTranslated": "Prevedeno z UI",
-  "aiGenerated": "Ustvarjeno z UI"
+  "aiGenerated": "Ustvarjeno z UI",
+  "captchaTitle": "Varnostno preverjanje",
+  "captchaDesc": "Zahteve pošiljate prehi­tro. Prosimo, potrdite, da ste človek, in nadaljujte."
 }
